@@ -2,9 +2,11 @@
 // wt move - Rename worktree branch
 // ===========================================================================
 
+use std::path::Path;
+
 use clap::Args;
 
-use crate::cli::{Error, Result};
+use crate::cli::{write_path_file, Error, Result};
 use crate::config::Config;
 use crate::git;
 
@@ -17,7 +19,7 @@ pub struct MoveArgs {
     new_branch: String,
 }
 
-pub fn run(args: MoveArgs, config: &Config, print_path: bool) -> Result<()> {
+pub fn run(args: MoveArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
     let repo_name = git::repo_name()?;
     let wt_dir = config.workspaces_dir.join(&repo_name);
 
@@ -57,9 +59,9 @@ pub fn run(args: MoveArgs, config: &Config, print_path: bool) -> Result<()> {
 
     eprintln!("Renamed {} -> {}", old_branch, args.new_branch);
 
-    // If we were inside the renamed worktree, output new path for shell to cd
-    if print_path && inside_target {
-        println!("{}", new_path.display());
+    // If we were inside the renamed worktree, write new path for shell to cd
+    if path_file.is_some() && inside_target {
+        write_path_file(path_file, &new_path)?;
     }
 
     Ok(())

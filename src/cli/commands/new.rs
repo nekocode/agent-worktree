@@ -6,7 +6,7 @@ use std::path::Path;
 
 use clap::Args;
 
-use crate::cli::{Error, Result};
+use crate::cli::{write_path_file, write_path_file_lines, Error, Result};
 use crate::config::Config;
 use crate::git;
 use crate::meta::WorktreeMeta;
@@ -28,7 +28,7 @@ pub struct NewArgs {
     snap: Option<String>,
 }
 
-pub fn run(args: NewArgs, config: &Config, print_path: bool) -> Result<()> {
+pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
     // Ensure we're in a git repo
     let repo_root = git::repo_root()?;
     let repo_name = git::repo_name()?;
@@ -80,12 +80,11 @@ pub fn run(args: NewArgs, config: &Config, print_path: bool) -> Result<()> {
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
-    // Handle snap mode - output path + command for shell wrapper to execute
+    // Handle snap mode - write path + command for shell wrapper to execute
     if let Some(cmd) = args.snap {
-        if print_path {
-            // Shell wrapper mode: output path on first line, command on second
-            println!("{}", wt_path.display());
-            println!("{}", cmd);
+        if path_file.is_some() {
+            // Shell wrapper mode: write path on first line, command on second
+            write_path_file_lines(path_file, &[&wt_path.display().to_string(), &cmd])?;
         } else {
             // Direct mode (deprecated, but keep for backward compat)
             run_snap_mode(&cmd, &wt_path, &branch, config, &trunk)?;
@@ -93,13 +92,12 @@ pub fn run(args: NewArgs, config: &Config, print_path: bool) -> Result<()> {
         return Ok(());
     }
 
-    // Output path for shell integration
-    if print_path {
-        println!("{}", wt_path.display());
+    // Write path for shell integration
+    if path_file.is_some() {
+        write_path_file(path_file, &wt_path)?;
     } else {
         eprintln!("Created worktree: {branch}");
         eprintln!("Path: {}", wt_path.display());
-        println!("{}", wt_path.display());
     }
 
     Ok(())

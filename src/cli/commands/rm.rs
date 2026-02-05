@@ -2,9 +2,11 @@
 // wt rm - Remove a worktree
 // ===========================================================================
 
+use std::path::Path;
+
 use clap::Args;
 
-use crate::cli::{Error, Result};
+use crate::cli::{write_path_file, Error, Result};
 use crate::config::Config;
 use crate::git;
 
@@ -18,7 +20,7 @@ pub struct RmArgs {
     force: bool,
 }
 
-pub fn run(args: RmArgs, config: &Config, print_path: bool) -> Result<()> {
+pub fn run(args: RmArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
     // Get main repo path BEFORE any destructive operations
     let main_path = git::repo_root()?;
     let repo_name = git::repo_name()?;
@@ -55,9 +57,9 @@ pub fn run(args: RmArgs, config: &Config, print_path: bool) -> Result<()> {
 
     eprintln!("Removed worktree: {branch}");
 
-    // If we were inside the removed worktree, output main repo path for shell to cd
-    if print_path && inside_target {
-        println!("{}", main_path.display());
+    // If we were inside the removed worktree, write main repo path for shell to cd
+    if path_file.is_some() && inside_target {
+        write_path_file(path_file, &main_path)?;
     }
 
     Ok(())

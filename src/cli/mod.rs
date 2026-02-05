@@ -4,9 +4,29 @@
 
 mod commands;
 
+use std::path::Path;
+
 use clap::{Parser, Subcommand};
 
 use crate::config::Config;
+
+/// Write path to file for shell integration
+pub fn write_path_file(path_file: Option<&Path>, path: &Path) -> Result<()> {
+    if let Some(file) = path_file {
+        std::fs::write(file, path.display().to_string())
+            .map_err(|e| Error::Other(format!("failed to write path file: {}", e)))?;
+    }
+    Ok(())
+}
+
+/// Write multiple lines to path file (for snap mode)
+pub fn write_path_file_lines(path_file: Option<&Path>, lines: &[&str]) -> Result<()> {
+    if let Some(file) = path_file {
+        std::fs::write(file, lines.join("\n"))
+            .map_err(|e| Error::Other(format!("failed to write path file: {}", e)))?;
+    }
+    Ok(())
+}
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -36,9 +56,9 @@ pub struct Cli {
     #[command(subcommand)]
     command: Command,
 
-    /// Print path only (for shell integration)
-    #[arg(long, global = true, hide = true)]
-    print_path: bool,
+    /// Write target path to file (for shell integration)
+    #[arg(long, global = true, hide = true, value_name = "FILE")]
+    path_file: Option<std::path::PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -84,20 +104,21 @@ enum Command {
 impl Cli {
     pub fn run(self) -> Result<()> {
         let config = Config::load()?;
+        let path_file = self.path_file.as_deref();
 
         match self.command {
-            Command::New(args) => commands::new::run(args, &config, self.print_path),
+            Command::New(args) => commands::new::run(args, &config, path_file),
             Command::Ls => commands::ls::run(&config),
-            Command::Cd(args) => commands::cd::run(args, &config, self.print_path),
-            Command::Main => commands::main::run(&config, self.print_path),
-            Command::Rm(args) => commands::rm::run(args, &config, self.print_path),
-            Command::Clean => commands::clean::run(&config, self.print_path),
-            Command::Merge(args) => commands::merge::run(args, &config, self.print_path),
+            Command::Cd(args) => commands::cd::run(args, &config, path_file),
+            Command::Main => commands::main::run(&config, path_file),
+            Command::Rm(args) => commands::rm::run(args, &config, path_file),
+            Command::Clean => commands::clean::run(&config, path_file),
+            Command::Merge(args) => commands::merge::run(args, &config, path_file),
             Command::Sync(args) => commands::sync::run(args, &config),
-            Command::Mv(args) => commands::r#move::run(args, &config, self.print_path),
+            Command::Mv(args) => commands::r#move::run(args, &config, path_file),
             Command::Setup(args) => commands::setup::run(args),
             Command::Init(args) => commands::init::run(args),
-            Command::SnapContinue => commands::snap_continue::run(&config),
+            Command::SnapContinue => commands::snap_continue::run(&config, path_file),
         }
     }
 }
@@ -225,11 +246,11 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parse_with_print_path() {
-        let cli = Cli::try_parse_from(["wt", "--print-path", "main"]);
+    fn test_cli_parse_with_path_file() {
+        let cli = Cli::try_parse_from(["wt", "--path-file", "/tmp/test", "main"]);
         assert!(cli.is_ok());
         let cli = cli.unwrap();
-        assert!(cli.print_path);
+        assert_eq!(cli.path_file, Some(std::path::PathBuf::from("/tmp/test")));
     }
 
     #[test]

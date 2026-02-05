@@ -9,7 +9,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::cli::{Error, Result};
+use crate::cli::{write_path_file, Error, Result};
 use crate::config::{Config, MergeStrategy};
 use crate::git;
 use crate::meta::WorktreeMeta;
@@ -48,10 +48,10 @@ pub struct SnapContext {
 // ===========================================================================
 
 /// Run snap-continue command.
-pub fn run(config: &Config) -> Result<()> {
+pub fn run(config: &Config, path_file: Option<&Path>) -> Result<()> {
     let ctx = gather_context(config)?;
     let action = determine_action(&ctx)?;
-    execute_action(&ctx, &action, config)
+    execute_action(&ctx, &action, config, path_file)
 }
 
 // ===========================================================================
@@ -166,12 +166,17 @@ pub fn cleanup_worktree(wt_path: &Path, branch: &str, config: &Config) -> Result
 // ===========================================================================
 
 /// Execute action with side effects
-fn execute_action(ctx: &SnapContext, action: &SnapAction, config: &Config) -> Result<()> {
+fn execute_action(
+    ctx: &SnapContext,
+    action: &SnapAction,
+    config: &Config,
+    path_file: Option<&Path>,
+) -> Result<()> {
     match action {
         SnapAction::CleanupNoChanges => {
             eprintln!("No changes detected. Cleaning up...");
             cleanup_worktree(&ctx.cwd, &ctx.branch, config)?;
-            println!("{}", ctx.repo_root.display());
+            write_path_file(path_file, &ctx.repo_root)?;
             std::process::exit(0);
         }
         SnapAction::MergeAndCleanup => {
@@ -201,7 +206,7 @@ fn execute_action(ctx: &SnapContext, action: &SnapAction, config: &Config) -> Re
             }
 
             cleanup_worktree(&ctx.cwd, &ctx.branch, config)?;
-            println!("{}", ctx.repo_root.display());
+            write_path_file(path_file, &ctx.repo_root)?;
             std::process::exit(0);
         }
         SnapAction::Reopen => {
@@ -211,7 +216,7 @@ fn execute_action(ctx: &SnapContext, action: &SnapAction, config: &Config) -> Re
         SnapAction::DiscardAndCleanup => {
             eprintln!("Discarding changes...");
             cleanup_worktree(&ctx.cwd, &ctx.branch, config)?;
-            println!("{}", ctx.repo_root.display());
+            write_path_file(path_file, &ctx.repo_root)?;
             std::process::exit(0);
         }
     }

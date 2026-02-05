@@ -2,11 +2,13 @@
 // wt clean - Clean up worktrees with no diff from trunk
 // ===========================================================================
 
-use crate::cli::Result;
+use std::path::Path;
+
+use crate::cli::{write_path_file, Result};
 use crate::config::Config;
 use crate::git;
 
-pub fn run(config: &Config, print_path: bool) -> Result<()> {
+pub fn run(config: &Config, path_file: Option<&Path>) -> Result<()> {
     // Get main repo path before any operations
     let main_path = git::repo_root()?;
     let repo_name = git::repo_name()?;
@@ -24,6 +26,7 @@ pub fn run(config: &Config, print_path: bool) -> Result<()> {
 
     let worktrees = git::list_worktrees()?;
     let mut cleaned = 0;
+    let mut checked = 0;
     let mut cleaned_current = false;
 
     for wt in worktrees {
@@ -39,6 +42,8 @@ pub fn run(config: &Config, print_path: bool) -> Result<()> {
         if branch == &trunk {
             continue;
         }
+
+        checked += 1;
 
         // Check if worktree has no diff from trunk
         if !git::has_diff_from(branch, &trunk).unwrap_or(true) {
@@ -64,15 +69,17 @@ pub fn run(config: &Config, print_path: bool) -> Result<()> {
         }
     }
 
-    if cleaned == 0 {
+    if checked == 0 {
+        eprintln!("No worktrees to clean.");
+    } else if cleaned == 0 {
         eprintln!("No worktrees to clean (all have changes).");
     } else {
         eprintln!("Cleaned {cleaned} worktree(s).");
     }
 
-    // Output main repo path for shell to cd if we were inside a cleaned worktree
-    if print_path && cleaned_current {
-        println!("{}", main_path.display());
+    // Write main repo path for shell to cd if we were inside a cleaned worktree
+    if path_file.is_some() && cleaned_current {
+        write_path_file(path_file, &main_path)?;
     }
 
     Ok(())

@@ -2,9 +2,11 @@
 // wt merge - Merge current worktree to trunk
 // ===========================================================================
 
+use std::path::Path;
+
 use clap::{Args, ValueEnum};
 
-use crate::cli::{Error, Result};
+use crate::cli::{write_path_file, Error, Result};
 use crate::config::{Config, MergeStrategy};
 use crate::git;
 use crate::process;
@@ -53,7 +55,7 @@ impl From<MergeStrategyArg> for MergeStrategy {
     }
 }
 
-pub fn run(args: MergeArgs, config: &Config, print_path: bool) -> Result<()> {
+pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
     // Get main repo path first (before any operations)
     let main_repo = git::repo_root()?;
 
@@ -138,9 +140,9 @@ pub fn run(args: MergeArgs, config: &Config, print_path: bool) -> Result<()> {
 
     eprintln!("Merge complete.");
 
-    // Output main repo path for shell to cd if we were inside worktree
-    if print_path && inside_worktree {
-        println!("{}", main_repo.display());
+    // Write main repo path for shell to cd if we were inside worktree
+    if path_file.is_some() && inside_worktree {
+        write_path_file(path_file, &main_repo)?;
     }
 
     Ok(())

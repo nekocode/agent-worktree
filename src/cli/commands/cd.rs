@@ -2,9 +2,11 @@
 // wt cd - Change to worktree directory
 // ===========================================================================
 
+use std::path::Path;
+
 use clap::Args;
 
-use crate::cli::{Error, Result};
+use crate::cli::{write_path_file, Error, Result};
 use crate::config::Config;
 use crate::git;
 
@@ -14,7 +16,7 @@ pub struct CdArgs {
     branch: String,
 }
 
-pub fn run(args: CdArgs, config: &Config, print_path: bool) -> Result<()> {
+pub fn run(args: CdArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
     let repo_name = git::repo_name()?;
     let wt_dir = config.workspaces_dir.join(&repo_name);
     let wt_path = wt_dir.join(&args.branch);
@@ -23,11 +25,10 @@ pub fn run(args: CdArgs, config: &Config, print_path: bool) -> Result<()> {
         return Err(Error::Git(git::Error::WorktreeNotFound(args.branch)));
     }
 
-    if print_path {
-        println!("{}", wt_path.display());
+    if path_file.is_some() {
+        write_path_file(path_file, &wt_path)?;
     } else {
         eprintln!("Switching to: {}", args.branch);
-        println!("{}", wt_path.display());
     }
 
     Ok(())

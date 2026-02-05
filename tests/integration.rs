@@ -13,6 +13,16 @@ fn wt_binary() -> PathBuf {
     path
 }
 
+/// Create a temp file for path output and return the path
+fn create_path_file(dir: &std::path::Path) -> PathBuf {
+    dir.join(".wt-path")
+}
+
+/// Read path from path_file
+fn read_path_file(path_file: &std::path::Path) -> String {
+    std::fs::read_to_string(path_file).unwrap_or_default()
+}
+
 fn setup_git_repo(dir: &std::path::Path) {
     Command::new("git")
         .args(["init"])
@@ -170,16 +180,17 @@ fn test_main_returns_repo_root() {
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
 
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["main", "--print-path"])
+        .args(["main", "--path-file", path_file.to_str().unwrap()])
         .current_dir(dir.path())
         .output()
         .expect("Failed to execute wt main");
 
     assert!(output.status.success());
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let path = stdout.trim();
+    let path = read_path_file(&path_file);
+    let path = path.trim();
     assert!(!path.is_empty());
     assert!(std::path::Path::new(path).exists());
 }
@@ -209,16 +220,17 @@ fn test_new_with_branch_name() {
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
 
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "test-feature", "--print-path"])
+        .args(["new", "test-feature", "--path-file", path_file.to_str().unwrap()])
         .current_dir(dir.path())
         .output()
         .expect("Failed to execute wt new");
 
     // May fail if ~/.agent-worktree doesn't exist, that's ok for now
     if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("test-feature"));
+        let path = read_path_file(&path_file);
+        assert!(path.contains("test-feature"));
     }
 }
 
@@ -252,7 +264,7 @@ fn test_cd_nonexistent() {
     setup_git_repo(dir.path());
 
     let output = Command::new(wt_binary())
-        .args(["cd", "nonexistent-branch", "--print-path"])
+        .args(["cd", "nonexistent-branch"])
         .current_dir(dir.path())
         .output()
         .expect("Failed to execute wt cd");
@@ -458,16 +470,17 @@ fn test_worktree_lifecycle_new_ls_rm() {
     let home = setup_git_repo_with_home(&repo);
 
     // Set HOME to fake home
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "feature-test", "--print-path"])
+        .args(["new", "feature-test", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
         .expect("wt new failed");
 
     if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let wt_path = stdout.trim();
+        let wt_path = read_path_file(&path_file);
+        let wt_path = wt_path.trim();
         assert!(wt_path.contains("feature-test"));
 
         // ls should show the worktree
@@ -589,15 +602,16 @@ fn test_main_from_subdirectory() {
     let sub = dir.path().join("nested").join("deep");
     std::fs::create_dir_all(&sub).unwrap();
 
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["main", "--print-path"])
+        .args(["main", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&sub)
         .output()
         .expect("wt main failed");
 
     assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.trim().is_empty());
+    let path = read_path_file(&path_file);
+    assert!(!path.trim().is_empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -705,12 +719,13 @@ fn test_clean_no_worktrees() {
 }
 
 #[test]
-fn test_clean_with_print_path() {
+fn test_clean_with_path_file() {
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
 
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["clean", "--print-path"])
+        .args(["clean", "--path-file", path_file.to_str().unwrap()])
         .current_dir(dir.path())
         .output()
         .expect("wt clean failed");
@@ -733,7 +748,7 @@ fn test_cd_without_print_path() {
         .output()
         .expect("wt cd failed");
 
-    // Should fail without --print-path too
+    // Should fail without --path-file too
     assert!(!output.status.success());
 }
 
@@ -749,7 +764,7 @@ fn test_new_with_base() {
     let home = setup_git_repo_with_home(&repo);
 
     let output = Command::new(wt_binary())
-        .args(["new", "feature-from-main", "--base", "main", "--print-path"])
+        .args(["new", "feature-from-main", "--base", "main"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -924,11 +939,12 @@ default_base = "main"
 
 #[test]
 fn test_full_worktree_lifecycle() {
-    let (_dir, repo, home) = setup_worktree_test_env();
+    let (dir, repo, home) = setup_worktree_test_env();
 
     // 1. Create a worktree
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "feature-lifecycle", "--print-path"])
+        .args(["new", "feature-lifecycle", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -939,7 +955,7 @@ fn test_full_worktree_lifecycle() {
         return;
     }
 
-    let wt_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let wt_path = read_path_file(&path_file).trim().to_string();
     assert!(wt_path.contains("feature-lifecycle"));
 
     // 2. Verify it's listed
@@ -978,7 +994,7 @@ fn test_ls_shows_worktree_details() {
 
     // Create a worktree first
     let output = Command::new(wt_binary())
-        .args(["new", "ls-test-branch", "--print-path"])
+        .args(["new", "ls-test-branch"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1019,7 +1035,7 @@ fn test_mv_existing_branch() {
 
     // Create a worktree
     let output = Command::new(wt_binary())
-        .args(["new", "mv-old-name", "--print-path"])
+        .args(["new", "mv-old-name"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1049,11 +1065,12 @@ fn test_mv_existing_branch() {
 
 #[test]
 fn test_sync_on_feature_branch() {
-    let (_dir, repo, home) = setup_worktree_test_env();
+    let (dir, repo, home) = setup_worktree_test_env();
 
     // Create a worktree
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "sync-feature", "--print-path"])
+        .args(["new", "sync-feature", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1063,7 +1080,7 @@ fn test_sync_on_feature_branch() {
         return;
     }
 
-    let wt_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let wt_path = read_path_file(&path_file).trim().to_string();
 
     // Sync from the worktree
     let output = Command::new(wt_binary())
@@ -1084,11 +1101,12 @@ fn test_sync_on_feature_branch() {
 
 #[test]
 fn test_merge_from_feature_branch() {
-    let (_dir, repo, home) = setup_worktree_test_env();
+    let (dir, repo, home) = setup_worktree_test_env();
 
     // Create a worktree
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "merge-feature", "--print-path"])
+        .args(["new", "merge-feature", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1098,7 +1116,7 @@ fn test_merge_from_feature_branch() {
         return;
     }
 
-    let wt_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let wt_path = read_path_file(&path_file).trim().to_string();
 
     // Make a change in the worktree
     std::fs::write(PathBuf::from(&wt_path).join("feature.txt"), "new feature").unwrap();
@@ -1133,18 +1151,19 @@ fn test_merge_from_feature_branch() {
 
 #[test]
 fn test_new_generates_random_name() {
-    let (_dir, repo, home) = setup_worktree_test_env();
+    let (dir, repo, home) = setup_worktree_test_env();
 
     // Create without specifying branch name
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "--print-path"])
+        .args(["new", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
         .expect("wt new failed");
 
     if output.status.success() {
-        let path = String::from_utf8_lossy(&output.stdout);
+        let path = read_path_file(&path_file);
         // Should have created some branch
         assert!(!path.trim().is_empty());
     }
@@ -1160,7 +1179,7 @@ fn test_clean_after_merge() {
 
     // Create a worktree
     let output = Command::new(wt_binary())
-        .args(["new", "clean-test", "--print-path"])
+        .args(["new", "clean-test"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1217,11 +1236,11 @@ fn test_init_multiple_options() {
 
 #[test]
 fn test_cd_to_existing_worktree() {
-    let (_dir, repo, home) = setup_worktree_test_env();
+    let (dir, repo, home) = setup_worktree_test_env();
 
     // Create worktree
     let output = Command::new(wt_binary())
-        .args(["new", "cd-target", "--print-path"])
+        .args(["new", "cd-target"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1232,15 +1251,16 @@ fn test_cd_to_existing_worktree() {
     }
 
     // Cd to it
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["cd", "cd-target", "--print-path"])
+        .args(["cd", "cd-target", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
         .expect("wt cd failed");
 
     if output.status.success() {
-        let path = String::from_utf8_lossy(&output.stdout);
+        let path = read_path_file(&path_file);
         assert!(path.contains("cd-target"));
     }
 }
@@ -1251,11 +1271,12 @@ fn test_cd_to_existing_worktree() {
 
 #[test]
 fn test_rm_force_dirty_worktree() {
-    let (_dir, repo, home) = setup_worktree_test_env();
+    let (dir, repo, home) = setup_worktree_test_env();
 
     // Create worktree
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "rm-dirty", "--print-path"])
+        .args(["new", "rm-dirty", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1265,7 +1286,7 @@ fn test_rm_force_dirty_worktree() {
         return;
     }
 
-    let wt_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let wt_path = read_path_file(&path_file).trim().to_string();
 
     // Make dirty change
     std::fs::write(PathBuf::from(&wt_path).join("dirty.txt"), "uncommitted").unwrap();
@@ -1292,7 +1313,7 @@ fn test_new_creates_metadata_file() {
     let (_dir, repo, home) = setup_worktree_test_env();
 
     let output = Command::new(wt_binary())
-        .args(["new", "meta-test", "--print-path"])
+        .args(["new", "meta-test"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1322,7 +1343,7 @@ fn test_ls_with_multiple_worktrees() {
     // Create two worktrees
     for name in &["multi-ls-1", "multi-ls-2"] {
         let _ = Command::new(wt_binary())
-            .args(["new", name, "--print-path"])
+            .args(["new", name])
             .current_dir(&repo)
             .env("HOME", &home)
             .output();
@@ -1352,11 +1373,12 @@ fn test_ls_with_multiple_worktrees() {
 
 #[test]
 fn test_merge_with_changes() {
-    let (_dir, repo, home) = setup_worktree_test_env();
+    let (dir, repo, home) = setup_worktree_test_env();
 
     // Create worktree
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "merge-changes", "--print-path"])
+        .args(["new", "merge-changes", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1366,7 +1388,7 @@ fn test_merge_with_changes() {
         return;
     }
 
-    let wt_path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+    let wt_path = PathBuf::from(read_path_file(&path_file).trim());
 
     // Make and commit changes
     std::fs::write(wt_path.join("feature.txt"), "new feature code").unwrap();
@@ -1398,11 +1420,12 @@ fn test_merge_with_changes() {
 
 #[test]
 fn test_sync_on_feature_with_updates() {
-    let (_dir, repo, home) = setup_worktree_test_env();
+    let (dir, repo, home) = setup_worktree_test_env();
 
     // Create worktree
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "sync-updates", "--print-path"])
+        .args(["new", "sync-updates", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1412,7 +1435,7 @@ fn test_sync_on_feature_with_updates() {
         return;
     }
 
-    let wt_path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+    let wt_path = PathBuf::from(read_path_file(&path_file).trim());
 
     // Make change in main repo
     std::fs::write(repo.join("main-update.txt"), "update from main").unwrap();
@@ -1445,7 +1468,7 @@ fn test_clean_remvs_merged_worktree() {
 
     // Create worktree
     let output = Command::new(wt_binary())
-        .args(["new", "clean-merged", "--print-path"])
+        .args(["new", "clean-merged"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1486,7 +1509,7 @@ fn test_mv_renames_worktree() {
 
     // Create worktree
     let output = Command::new(wt_binary())
-        .args(["new", "mv-src", "--print-path"])
+        .args(["new", "mv-src"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1517,11 +1540,12 @@ fn test_mv_renames_worktree() {
 
 #[test]
 fn test_cd_returns_correct_path() {
-    let (_dir, repo, home) = setup_worktree_test_env();
+    let (dir, repo, home) = setup_worktree_test_env();
 
     // Create worktree
+    let path_file = create_path_file(dir.path());
     let new_output = Command::new(wt_binary())
-        .args(["new", "cd-check", "--print-path"])
+        .args(["new", "cd-check", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1531,18 +1555,19 @@ fn test_cd_returns_correct_path() {
         return;
     }
 
-    let created_path = String::from_utf8_lossy(&new_output.stdout).trim().to_string();
+    let created_path = read_path_file(&path_file).trim().to_string();
 
     // Cd should return the same path
+    let cd_path_file = dir.path().join(".wt-cd-path");
     let output = Command::new(wt_binary())
-        .args(["cd", "cd-check", "--print-path"])
+        .args(["cd", "cd-check", "--path-file", cd_path_file.to_str().unwrap()])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
         .expect("wt cd failed");
 
     if output.status.success() {
-        let cd_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let cd_path = read_path_file(&cd_path_file).trim().to_string();
         assert_eq!(created_path, cd_path);
     }
 }
@@ -1613,16 +1638,24 @@ fn test_new_with_snap_outputs_two_lines() {
     std::fs::create_dir_all(&repo).unwrap();
     let home = setup_git_repo_with_home(&repo);
 
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "snap-test", "-s", "echo hello", "--print-path"])
+        .args([
+            "new",
+            "snap-test",
+            "-s",
+            "echo hello",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
         .expect("wt new failed");
 
     assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let lines: Vec<&str> = stdout.lines().collect();
+    let content = read_path_file(&path_file);
+    let lines: Vec<&str> = content.lines().collect();
     // Should output path on first line, command on second
     assert_eq!(lines.len(), 2);
     assert!(lines[0].contains("snap-test"));
@@ -1643,8 +1676,16 @@ fn test_new_with_snap_creates_metadata() {
     std::fs::create_dir_all(&repo).unwrap();
     let home = setup_git_repo_with_home(&repo);
 
+    let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "snap-meta-test", "-s", "agent", "--print-path"])
+        .args([
+            "new",
+            "snap-meta-test",
+            "-s",
+            "agent",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()

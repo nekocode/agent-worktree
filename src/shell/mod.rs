@@ -138,6 +138,10 @@ wt() {
     echo "wt: binary not found. Install: npm install -g agent-worktree" >&2
     return 1
   fi
+  # Pass through if -h/--help anywhere in args
+  case " $* " in
+    *" -h "*|*" --help "*) "$wt_bin" "$@"; return ;;
+  esac
   case "$1" in
     cd|main)
       target_path="$("$wt_bin" "$@" --print-path)" || return $?
@@ -162,6 +166,11 @@ function wt
     echo "wt: binary not found. Install: npm install -g agent-worktree" >&2
     return 1
   end
+  # Pass through if -h/--help anywhere in args
+  if contains -- -h $argv; or contains -- --help $argv
+    $wt_bin $argv
+    return
+  end
   switch $argv[1]
     case cd main
       set -l target_path ($wt_bin $argv --print-path); or return $status
@@ -182,6 +191,11 @@ function wt {
   if (-not $wtBin) {
     Write-Error "wt: binary not found. Install: npm install -g agent-worktree"
     return 1
+  }
+  # Pass through if -h/--help anywhere in args
+  if ($args -contains '-h' -or $args -contains '--help') {
+    & $wtBin.Source @args
+    return
   }
   switch ($args[0]) {
     { $_ -in 'cd', 'main' } {

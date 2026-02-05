@@ -19,7 +19,7 @@ pub enum Error {
     HookFailed(String),
 }
 
-/// Run a command in the specified directory, inheriting stdio
+/// Run a command in the specified directory, inheriting stdio.
 pub fn run_interactive(command: &str, cwd: &Path) -> Result<ExitStatus> {
     let status = if cfg!(target_os = "windows") {
         Command::new("cmd")

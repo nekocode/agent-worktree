@@ -80,9 +80,16 @@ pub fn run(args: NewArgs, config: &Config, print_path: bool) -> Result<()> {
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
-    // Handle snap mode
+    // Handle snap mode - output path + command for shell wrapper to execute
     if let Some(cmd) = args.snap {
-        run_snap_mode(&cmd, &wt_path, &branch, config, &trunk)?;
+        if print_path {
+            // Shell wrapper mode: output path on first line, command on second
+            println!("{}", wt_path.display());
+            println!("{}", cmd);
+        } else {
+            // Direct mode (deprecated, but keep for backward compat)
+            run_snap_mode(&cmd, &wt_path, &branch, config, &trunk)?;
+        }
         return Ok(());
     }
 

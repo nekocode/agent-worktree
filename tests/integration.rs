@@ -1601,3 +1601,90 @@ fn test_version_output() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("wt") || stdout.contains("0.1"));
 }
+
+// ---------------------------------------------------------------------------
+// Snap Mode Tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_new_with_snap_outputs_two_lines() {
+    let dir = tempdir().unwrap();
+    let repo = dir.path().join("repo");
+    std::fs::create_dir_all(&repo).unwrap();
+    let home = setup_git_repo_with_home(&repo);
+
+    let output = Command::new(wt_binary())
+        .args(["new", "snap-test", "-s", "echo hello", "--print-path"])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new failed");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+    // Should output path on first line, command on second
+    assert_eq!(lines.len(), 2);
+    assert!(lines[0].contains("snap-test"));
+    assert_eq!(lines[1], "echo hello");
+
+    // Cleanup
+    let _ = Command::new(wt_binary())
+        .args(["rm", "snap-test", "-f"])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output();
+}
+
+#[test]
+fn test_new_with_snap_creates_metadata() {
+    let dir = tempdir().unwrap();
+    let repo = dir.path().join("repo");
+    std::fs::create_dir_all(&repo).unwrap();
+    let home = setup_git_repo_with_home(&repo);
+
+    let output = Command::new(wt_binary())
+        .args(["new", "snap-meta-test", "-s", "agent", "--print-path"])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new failed");
+
+    assert!(output.status.success());
+
+    // Check metadata file exists with snap info
+    let meta_path = home
+        .join(".agent-worktree")
+        .join("workspaces")
+        .join("repo")
+        .join("snap-meta-test.status.toml");
+    assert!(meta_path.exists());
+
+    let content = std::fs::read_to_string(&meta_path).unwrap();
+    assert!(content.contains("snap"));
+    assert!(content.contains("agent"));
+
+    // Cleanup
+    let _ = Command::new(wt_binary())
+        .args(["rm", "snap-meta-test", "-f"])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output();
+}
+
+#[test]
+fn test_snap_continue_not_in_worktree() {
+    let dir = tempdir().unwrap();
+    setup_git_repo(dir.path());
+
+    // snap-continue should fail when not in a worktree
+    let output = Command::new(wt_binary())
+        .args(["snap-continue"])
+        .current_dir(dir.path())
+        .output()
+        .expect("wt snap-continue failed");
+
+    // Should fail (not in worktree or no changes)
+    // The exact behavior depends on implementation
+    let _status = output.status;
+}

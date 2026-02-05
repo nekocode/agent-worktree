@@ -128,7 +128,7 @@ const MARKER_END: &str = "# === agent-worktree END ===";
 const BASH_ZSH_WRAPPER: &str = r#"# === agent-worktree BEGIN ===
 # NOTE: Don't use 'path' as variable name - it shadows zsh's $path array
 wt() {
-  local wt_bin target_path
+  local wt_bin target_path snap_output snap_cmd
   if [[ -n "$ZSH_VERSION" ]]; then
     wt_bin=$(whence -p wt 2>/dev/null)
   else
@@ -147,7 +147,48 @@ wt() {
       target_path="$("$wt_bin" "$@" --print-path)" || return $?
       [[ -n "$target_path" ]] && cd "$target_path"
       ;;
-    new|rm|mv|merge|clean)
+    new)
+      # Check for snap mode (-s/--snap)
+      if [[ " $* " == *" -s "* ]] || [[ " $* " == *" --snap "* ]]; then
+        # Get path and snap command from binary (two lines)
+        snap_output="$("$wt_bin" "$@" --print-path)" || return $?
+        target_path="$(echo "$snap_output" | head -n1)"
+        snap_cmd="$(echo "$snap_output" | tail -n1)"
+        # If only one line, snap_cmd equals target_path - clear it
+        [[ "$target_path" == "$snap_cmd" ]] && snap_cmd=""
+        [[ -n "$target_path" ]] && cd "$target_path"
+        # Run snap mode loop in shell (preserves TTY)
+        if [[ -n "$snap_cmd" ]]; then
+          while true; do
+            echo "Entering snap mode: $snap_cmd"
+            echo "Worktree: $(basename "$target_path")"
+            echo "---"
+            # Run agent directly in shell (has TTY)
+            eval "$snap_cmd"
+            local agent_status=$?
+            if [[ $agent_status -ne 0 ]]; then
+              echo "Agent exited abnormally. Worktree preserved."
+              return $agent_status
+            fi
+            # Let binary handle the rest (check changes, prompt, merge)
+            local continue_output
+            continue_output="$("$wt_bin" snap-continue)"
+            local continue_status=$?
+            # 0=done (output=repo path), 1=error, 2=reopen agent
+            if [[ $continue_status -eq 0 ]] && [[ -n "$continue_output" ]]; then
+              cd "$continue_output"
+              break
+            elif [[ $continue_status -ne 2 ]]; then
+              break
+            fi
+          done
+        fi
+      else
+        target_path="$("$wt_bin" "$@" --print-path)" || return $?
+        [[ -n "$target_path" ]] && cd "$target_path"
+      fi
+      ;;
+    rm|mv|merge|clean)
       target_path="$("$wt_bin" "$@" --print-path)" || return $?
       [[ -n "$target_path" ]] && cd "$target_path"
       ;;
@@ -175,7 +216,40 @@ function wt
     case cd main
       set -l target_path ($wt_bin $argv --print-path); or return $status
       test -n "$target_path"; and cd $target_path
-    case new rm mv merge clean
+    case new
+      # Check for snap mode (-s/--snap)
+      if contains -- -s $argv; or contains -- --snap $argv
+        set -l snap_output ($wt_bin $argv --print-path); or return $status
+        set -l lines (string split \n $snap_output)
+        set -l target_path $lines[1]
+        set -l snap_cmd $lines[2]
+        test -n "$target_path"; and cd $target_path
+        if test -n "$snap_cmd"
+          while true
+            echo "Entering snap mode: $snap_cmd"
+            echo "Worktree: "(basename $target_path)
+            echo "---"
+            eval $snap_cmd
+            set -l agent_status $status
+            if test $agent_status -ne 0
+              echo "Agent exited abnormally. Worktree preserved."
+              return $agent_status
+            end
+            set -l continue_output ($wt_bin snap-continue)
+            set -l continue_status $status
+            if test $continue_status -eq 0; and test -n "$continue_output"
+              cd $continue_output
+              break
+            else if test $continue_status -ne 2
+              break
+            end
+          end
+        end
+      else
+        set -l target_path ($wt_bin $argv --print-path); or return $status
+        test -n "$target_path"; and cd $target_path
+      end
+    case rm mv merge clean
       set -l target_path ($wt_bin $argv --print-path); or return $status
       test -n "$target_path"; and cd $target_path
     case '*'
@@ -203,7 +277,43 @@ function wt {
       if ($LASTEXITCODE -ne 0) { return $LASTEXITCODE }
       if ($targetPath) { Set-Location $targetPath }
     }
-    { $_ -in 'new', 'rm', 'mv', 'merge', 'clean' } {
+    'new' {
+      # Check for snap mode (-s/--snap)
+      if ($args -contains '-s' -or $args -contains '--snap') {
+        $snapOutput = & $wtBin.Source @args --print-path
+        if ($LASTEXITCODE -ne 0) { return $LASTEXITCODE }
+        $lines = $snapOutput -split "`n"
+        $targetPath = $lines[0]
+        $snapCmd = $lines[1]
+        if ($targetPath) { Set-Location $targetPath }
+        if ($snapCmd) {
+          while ($true) {
+            Write-Host "Entering snap mode: $snapCmd"
+            Write-Host "Worktree: $(Split-Path $targetPath -Leaf)"
+            Write-Host "---"
+            Invoke-Expression $snapCmd
+            $agentStatus = $LASTEXITCODE
+            if ($agentStatus -ne 0) {
+              Write-Host "Agent exited abnormally. Worktree preserved."
+              return $agentStatus
+            }
+            $continueOutput = & $wtBin.Source snap-continue
+            $continueStatus = $LASTEXITCODE
+            if ($continueStatus -eq 0 -and $continueOutput) {
+              Set-Location $continueOutput
+              break
+            } elseif ($continueStatus -ne 2) {
+              break
+            }
+          }
+        }
+      } else {
+        $targetPath = & $wtBin.Source @args --print-path
+        if ($LASTEXITCODE -ne 0) { return $LASTEXITCODE }
+        if ($targetPath) { Set-Location $targetPath }
+      }
+    }
+    { $_ -in 'rm', 'mv', 'merge', 'clean' } {
       $targetPath = & $wtBin.Source @args --print-path
       if ($LASTEXITCODE -ne 0) { return $LASTEXITCODE }
       if ($targetPath) { Set-Location $targetPath }

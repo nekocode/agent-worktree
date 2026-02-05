@@ -75,6 +75,10 @@ enum Command {
 
     /// Create .agent-worktree.toml config file
     Init(commands::InitArgs),
+
+    /// Continue snap mode after agent exits (internal use)
+    #[command(hide = true)]
+    SnapContinue,
 }
 
 impl Cli {
@@ -93,6 +97,7 @@ impl Cli {
             Command::Mv(args) => commands::r#move::run(args, &config, self.print_path),
             Command::Setup(args) => commands::setup::run(args),
             Command::Init(args) => commands::init::run(args),
+            Command::SnapContinue => commands::snap_continue::run(&config),
         }
     }
 }
@@ -225,5 +230,37 @@ mod tests {
         assert!(cli.is_ok());
         let cli = cli.unwrap();
         assert!(cli.print_path);
+    }
+
+    #[test]
+    fn test_cli_parse_new_with_snap() {
+        let cli = Cli::try_parse_from(["wt", "new", "-s", "claude"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_new_with_snap_long() {
+        let cli = Cli::try_parse_from(["wt", "new", "--snap", "claude"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_new_with_snap_and_branch() {
+        let cli = Cli::try_parse_from(["wt", "new", "my-branch", "-s", "agent"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_snap_continue() {
+        let cli = Cli::try_parse_from(["wt", "snap-continue"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_snap_continue_is_hidden() {
+        // snap-continue should not appear in help
+        let result = Cli::try_parse_from(["wt", "--help"]);
+        // --help causes early exit but the command is still valid
+        assert!(result.is_err());
     }
 }

@@ -12,6 +12,7 @@ pub mod r#move;
 pub mod new;
 pub mod rm;
 pub mod setup;
+pub mod snap_continue;
 pub mod sync;
 
 // Re-export argument types

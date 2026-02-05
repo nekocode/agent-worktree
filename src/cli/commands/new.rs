@@ -24,7 +24,7 @@ pub struct NewArgs {
     base: Option<String>,
 
     /// Run command in snap mode: create -> run -> merge -> cleanup
-    #[arg(long, value_name = "CMD")]
+    #[arg(short, long, value_name = "CMD")]
     snap: Option<String>,
 }
 

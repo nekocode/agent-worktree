@@ -50,9 +50,9 @@ wt merge
 One-liner for AI agent workflows:
 
 ```bash
-wt new --snap claude           # Random branch name
-wt new fix-bug --snap cursor   # Specified branch name
-wt new --snap "aider --model sonnet"  # Command with arguments
+wt new -s claude           # Random branch name
+wt new fix-bug -s cursor   # Specified branch name
+wt new -s "aider --model sonnet"  # Command with arguments
 ```
 
 Flow: Create worktree → Enter → Run agent → [Develop] → Agent exits → Check changes → Merge → Cleanup
@@ -71,14 +71,14 @@ When the agent exits normally with uncommitted changes:
 | Command | Description |
 |---------|-------------|
 | `wt new [branch]` | Create worktree (random name if omitted) |
-| `wt new [branch] --base <ref>` | Create from specific commit/branch |
-| `wt new [branch] --snap <cmd>` | Create + snap mode |
+| `wt new --base <ref>` | Create from specific commit/branch |
+| `wt new -s <cmd>` | Create + snap mode |
 | `wt cd <branch>` | Switch to worktree |
-| `wt ls` | List worktrees with status |
+| `wt ls` | List worktrees |
 | `wt main` | Return to main repository |
 | `wt mv <old> <new>` | Rename worktree (use `.` for current) |
 | `wt rm <branch>` | Remove worktree (use `.` for current) |
-| `wt rm <branch> --force` | Force remove with uncommitted changes |
+| `wt rm -f <branch>` | Force remove with uncommitted changes |
 | `wt clean` | Remove worktrees with no diff from trunk |
 
 ### Workflow
@@ -88,7 +88,7 @@ When the agent exits normally with uncommitted changes:
 | `wt merge` | Merge current worktree to trunk |
 | `wt merge -s <strategy>` | Merge with strategy (squash/merge/rebase) |
 | `wt merge --into <branch>` | Merge to specific branch |
-| `wt merge --no-delete` | Keep worktree after merge |
+| `wt merge -k` | Keep worktree after merge |
 | `wt merge --continue` | Continue after resolving conflicts |
 | `wt merge --abort` | Abort merge |
 | `wt sync` | Sync updates from trunk (rebase) |

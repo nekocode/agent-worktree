@@ -98,7 +98,7 @@ fn test_merge_help() {
     assert!(stdout.contains("Merge"));
     assert!(stdout.contains("--strategy"));
     assert!(stdout.contains("--into"));
-    assert!(stdout.contains("--no-delete"));
+    assert!(stdout.contains("--keep"));
 }
 
 // ---------------------------------------------------------------------------
@@ -1383,7 +1383,7 @@ fn test_merge_with_changes() {
 
     // Try to merge from worktree
     let output = Command::new(wt_binary())
-        .args(["merge", "--no-delete"])
+        .args(["merge", "--keep"])
         .current_dir(&wt_path)
         .env("HOME", &home)
         .output()

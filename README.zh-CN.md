@@ -50,9 +50,9 @@ wt merge
 AI agent 工作流一行搞定：
 
 ```bash
-wt new --snap claude           # 随机分支名
-wt new fix-bug --snap cursor   # 指定分支名
-wt new --snap "aider --model sonnet"  # 带参数的命令
+wt new -s claude           # 随机分支名
+wt new fix-bug -s cursor   # 指定分支名
+wt new -s "aider --model sonnet"  # 带参数的命令
 ```
 
 流程：创建 worktree → 进入 → 运行 agent → [开发] → agent 退出 → 检查更改 → 合并 → 清理
@@ -71,14 +71,14 @@ Agent 正常退出且有未提交更改时：
 | 命令 | 描述 |
 |------|------|
 | `wt new [branch]` | 创建 worktree（省略则随机命名） |
-| `wt new [branch] --base <ref>` | 基于指定 commit/分支创建 |
-| `wt new [branch] --snap <cmd>` | 创建 + snap 模式 |
+| `wt new --base <ref>` | 基于指定 commit/分支创建 |
+| `wt new -s <cmd>` | 创建 + snap 模式 |
 | `wt cd <branch>` | 切换到 worktree |
-| `wt ls` | 列出 worktree 及状态 |
+| `wt ls` | 列出 worktree |
 | `wt main` | 返回主仓库 |
 | `wt mv <old> <new>` | 重命名 worktree（`.` 表示当前） |
 | `wt rm <branch>` | 删除 worktree（`.` 表示当前） |
-| `wt rm <branch> --force` | 强制删除（含未提交更改） |
+| `wt rm -f <branch>` | 强制删除（含未提交更改） |
 | `wt clean` | 清理与 trunk 无差异的 worktree |
 
 ### 工作流
@@ -88,7 +88,7 @@ Agent 正常退出且有未提交更改时：
 | `wt merge` | 合并当前 worktree 到 trunk |
 | `wt merge -s <strategy>` | 指定合并策略（squash/merge/rebase） |
 | `wt merge --into <branch>` | 合并到指定分支 |
-| `wt merge --no-delete` | 合并后保留 worktree |
+| `wt merge -k` | 合并后保留 worktree |
 | `wt merge --continue` | 解决冲突后继续 |
 | `wt merge --abort` | 放弃合并 |
 | `wt sync` | 从 trunk 同步更新（rebase） |

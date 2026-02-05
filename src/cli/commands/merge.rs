@@ -20,8 +20,8 @@ pub struct MergeArgs {
     into: Option<String>,
 
     /// Keep worktree after merge (don't cleanup)
-    #[arg(long)]
-    no_delete: bool,
+    #[arg(short = 'k', long)]
+    keep: bool,
 
     /// Continue merge after resolving conflicts
     #[arg(long)]
@@ -32,7 +32,7 @@ pub struct MergeArgs {
     abort: bool,
 
     /// Skip pre-merge hooks
-    #[arg(long)]
+    #[arg(short = 'H', long)]
     skip_hooks: bool,
 }
 
@@ -131,8 +131,8 @@ pub fn run(args: MergeArgs, config: &Config, print_path: bool) -> Result<()> {
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
-    // Clean up unless --no-delete
-    if !args.no_delete {
+    // Clean up unless --keep
+    if !args.keep {
         cleanup_worktree(&current, config)?;
     }
 

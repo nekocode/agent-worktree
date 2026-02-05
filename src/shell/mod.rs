@@ -75,7 +75,23 @@ impl Shell {
         let home = base.home_dir();
 
         Ok(match self {
-            Shell::Bash => home.join(".bashrc"),
+            Shell::Bash => {
+                // macOS: login shells read .bash_profile, not .bashrc
+                // Use .bash_profile if it exists, otherwise .bashrc
+                #[cfg(target_os = "macos")]
+                {
+                    let bash_profile = home.join(".bash_profile");
+                    if bash_profile.exists() {
+                        bash_profile
+                    } else {
+                        home.join(".bashrc")
+                    }
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    home.join(".bashrc")
+                }
+            }
             Shell::Zsh => home.join(".zshrc"),
             Shell::Fish => home.join(".config/fish/config.fish"),
             // PowerShell profile: $HOME/Documents/PowerShell/Microsoft.PowerShell_profile.ps1
@@ -323,7 +339,9 @@ mod tests {
         let config = Shell::Bash.config_file();
         assert!(config.is_ok());
         let path = config.unwrap();
-        assert!(path.to_string_lossy().contains(".bashrc"));
+        // macOS uses .bash_profile if exists, otherwise .bashrc
+        let path_str = path.to_string_lossy();
+        assert!(path_str.contains(".bashrc") || path_str.contains(".bash_profile"));
     }
 
     #[test]

@@ -31,25 +31,25 @@ pub fn run(config: &Config) -> Result<()> {
 
     // Get current branch for highlighting
     let current = git::current_branch().ok();
+    let home = dirs::home_dir();
 
-    println!("{:<20} {:<12} PATH", "BRANCH", "STATUS");
+    println!("  {:<18} PATH", "BRANCH");
     println!("{}", "-".repeat(60));
 
     for wt in managed {
         let branch = wt.branch.as_deref().unwrap_or("(detached)");
         let is_current = current.as_deref() == Some(branch);
-
-        let status = if is_current { "* current" } else { "" };
-
         let marker = if is_current { "* " } else { "  " };
 
-        println!(
-            "{}{:<18} {:<12} {}",
-            marker,
-            branch,
-            status,
-            wt.path.display()
-        );
+        // Replace home dir with ~ for shorter display
+        let path_display = match &home {
+            Some(h) if wt.path.starts_with(h) => {
+                format!("~/{}", wt.path.strip_prefix(h).unwrap().display())
+            }
+            _ => wt.path.display().to_string(),
+        };
+
+        println!("{}{:<18} {}", marker, branch, path_display);
     }
 
     Ok(())

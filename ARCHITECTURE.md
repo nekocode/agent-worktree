@@ -7,7 +7,7 @@ agent-worktree 是一个 Git Worktree 工作流工具，为 AI coding agent 提�
 **核心价值**：
 - 并行开发：同时运行多个 agent，互不干扰
 - 环境隔离：每个功能独立工作目录
-- 流程自动化：`--snap` 模式实现"即用即删"的完整开发闭环
+- 流程自动化：`-s/--snap` 模式实现"即用即删"的完整开发闭环
 
 ---
 
@@ -45,41 +45,41 @@ trunk = "main"
 ### 1. Worktree 管理
 
 ```bash
-wt new [branch]                   # 创建 worktree 并进入
-wt new [branch] --base <ref>      # 基于指定 commit/分支创建（默认基于 trunk 最新）
-wt new [branch] --snap <command>  # 创建 + snap 模式
-wt cd <branch>                    # 切换到指定 worktree
-wt ls                             # 列出 worktree 及状态
-wt main                           # 回到主仓库
-wt mv <old> <new>                 # 重命名 worktree 分支（old 可用 . 表示当前）
-wt rm <branch> [--force]          # 删除 worktree（branch 可用 . 表示当前）
-wt clean                          # 清理所有与 trunk 无差异的 worktree
+wt new [branch]              # 创建 worktree 并进入
+wt new [branch] --base <ref> # 基于指定 commit/分支创建（默认基于 trunk 最新）
+wt new [branch] -s <cmd>     # 创建 + snap 模式
+wt cd <branch>               # 切换到指定 worktree
+wt ls                        # 列出 worktree
+wt main                      # 回到主仓库
+wt mv <old> <new>            # 重命名 worktree 分支（old 可用 . 表示当前）
+wt rm <branch> [-f]          # 删除 worktree（branch 可用 . 表示当前）
+wt clean                     # 清理所有与 trunk 无差异的 worktree
 ```
 
 ### 2. 工作流
 
 ```bash
-wt merge [options]                # 合并当前 worktree 到主分支
-    -s, --strategy <squash|merge|rebase>   # 合并策略，默认 squash
-    --into <branch>               # 合并到指定分支（覆盖 trunk 设置）
-    --no-delete                   # 合并后保留 worktree
-    --continue                    # 解决冲突后继续
-    --abort                       # 放弃合并，恢复到冲突前状态
-    --skip-hooks                  # 跳过 pre-merge hook
+wt merge [options]           # 合并当前 worktree 到主分支
+    -s, --strategy <squash|merge|rebase>  # 合并策略，默认 squash
+    --into <branch>          # 合并到指定分支（覆盖 trunk 设置）
+    -k, --keep               # 合并后保留 worktree
+    -H, --skip-hooks         # 跳过 pre-merge hook
+    --continue               # 解决冲突后继续
+    --abort                  # 放弃合并，恢复到冲突前状态
 
-wt sync [options]                 # 从 trunk 同步更新到当前 worktree
-    -s, --strategy <rebase|merge> # 同步策略，默认 rebase
-    --continue                    # 解决冲突后继续
-    --abort                       # 放弃同步，恢复到冲突前状态
+wt sync [options]            # 从 trunk 同步更新到当前 worktree
+    -s, --strategy <rebase|merge>  # 同步策略，默认 rebase
+    --continue               # 解决冲突后继续
+    --abort                  # 放弃同步，恢复到冲突前状态
 ```
 
 ### 3. 配置
 
 ```bash
-wt setup                          # 安装 shell 集成（自动检测 shell）
-wt setup --shell zsh              # 指定 shell
-wt init                           # 在当前项目初始化配置
-wt init --trunk <branch>          # 初始化并指定主干分支
+wt setup                     # 安装 shell 集成（自动检测 shell）
+wt setup --shell zsh         # 指定 shell
+wt init                      # 在当前项目初始化配置
+wt init --trunk <branch>     # 初始化并指定主干分支
 ```
 
 ---
@@ -120,9 +120,9 @@ Wrapper 会检查 `wt` 命令是否存在，不存在时给出安装提示。
 ```
 
 ```bash
-wt new --snap claude  # 简单命令，随机分支名
-wt new --snap "aider --model sonnet"  # 带参数的命令需要引号
-wt new fix-bug --snap cursor  # 指定分支名
+wt new -s claude  # 简单命令，随机分支名
+wt new -s "aider --model sonnet"  # 带参数的命令需要引号
+wt new fix-bug -s cursor  # 指定分支名
 ```
 
 ### Agent 退出处理
@@ -198,13 +198,13 @@ agent-worktree/
 │   │   ├── mod.rs       # Cli struct + Command enum
 │   │   └── commands/
 │   │       ├── mod.rs   # 命令模块导出
-│   │       ├── new.rs   # wt new [branch] [--base] [--snap]
+│   │       ├── new.rs   # wt new [branch] [--base] [-s]
 │   │       ├── ls.rs    # wt ls
 │   │       ├── cd.rs    # wt cd <branch>
 │   │       ├── main.rs  # wt main
 │   │       ├── rm.rs    # wt rm <branch> [--force]
 │   │       ├── clean.rs # wt clean
-│   │       ├── merge.rs # wt merge [--strategy] [--into] [--no-delete]
+│   │       ├── merge.rs # wt merge [-s] [--into] [-k]
 │   │       ├── sync.rs  # wt sync [--strategy]
 │   │       ├── move.rs  # wt mv <old> <new>
 │   │       ├── setup.rs # wt setup [--shell]

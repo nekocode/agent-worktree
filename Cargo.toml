@@ -1,6 +1,6 @@
 [package]
 name = "agent-worktree"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Git worktree workflow tool for AI coding agents"
 license = "MIT"

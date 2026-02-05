@@ -76,10 +76,10 @@ When the agent exits normally with uncommitted changes:
 | `wt cd <branch>` | Switch to worktree |
 | `wt ls` | List worktrees with status |
 | `wt main` | Return to main repository |
-| `wt move <old> <new>` | Rename worktree (use `.` for current) |
+| `wt mv <old> <new>` | Rename worktree (use `.` for current) |
 | `wt rm <branch>` | Remove worktree (use `.` for current) |
 | `wt rm <branch> --force` | Force remove with uncommitted changes |
-| `wt clean` | Remove all merged worktrees |
+| `wt clean` | Remove worktrees with no diff from trunk |
 
 ### Workflow
 

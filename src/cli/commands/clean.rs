@@ -1,5 +1,5 @@
 // ===========================================================================
-// wt clean - Clean up merged worktrees
+// wt clean - Clean up worktrees with no diff from trunk
 // ===========================================================================
 
 use crate::cli::Result;
@@ -7,6 +7,8 @@ use crate::config::Config;
 use crate::git;
 
 pub fn run(config: &Config, print_path: bool) -> Result<()> {
+    // Get main repo path before any operations
+    let main_path = git::repo_root()?;
     let repo_name = git::repo_name()?;
     let wt_dir = config.workspaces_dir.join(&repo_name);
 
@@ -38,14 +40,17 @@ pub fn run(config: &Config, print_path: bool) -> Result<()> {
             continue;
         }
 
-        // Check if merged
-        if git::is_merged(branch, &trunk).unwrap_or(false) {
+        // Check if worktree has no diff from trunk
+        if !git::has_diff_from(branch, &trunk).unwrap_or(true) {
             // Check if user is currently inside this worktree
             let inside = git::is_cwd_inside(&wt.path);
 
-            eprintln!("Cleaning merged worktree: {branch}");
+            eprintln!("Cleaning worktree (no diff from {trunk}): {branch}");
 
             git::remove_worktree(&wt.path, false).ok();
+
+            // Switch to main repo before deleting branch
+            std::env::set_current_dir(&main_path).ok();
             git::delete_branch(branch, false).ok();
 
             let meta_path = wt_dir.join(format!("{branch}.status.toml"));
@@ -60,14 +65,13 @@ pub fn run(config: &Config, print_path: bool) -> Result<()> {
     }
 
     if cleaned == 0 {
-        eprintln!("No merged worktrees to clean.");
+        eprintln!("No worktrees to clean (all have changes).");
     } else {
         eprintln!("Cleaned {cleaned} worktree(s).");
     }
 
     // Output main repo path for shell to cd if we were inside a cleaned worktree
     if print_path && cleaned_current {
-        let main_path = git::repo_root()?;
         println!("{}", main_path.display());
     }
 

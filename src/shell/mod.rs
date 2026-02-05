@@ -110,24 +110,29 @@ const MARKER_BEGIN: &str = "# === agent-worktree BEGIN ===";
 const MARKER_END: &str = "# === agent-worktree END ===";
 
 const BASH_ZSH_WRAPPER: &str = r#"# === agent-worktree BEGIN ===
+# NOTE: Don't use 'path' as variable name - it shadows zsh's $path array
 wt() {
-  if ! command -v wt &>/dev/null; then
-    echo "wt: command not found. Install: npm install -g agent-worktree" >&2
+  local wt_bin target_path
+  if [[ -n "$ZSH_VERSION" ]]; then
+    wt_bin=$(whence -p wt 2>/dev/null)
+  else
+    wt_bin=$(type -P wt 2>/dev/null)
+  fi
+  if [[ -z "$wt_bin" ]]; then
+    echo "wt: binary not found. Install: npm install -g agent-worktree" >&2
     return 1
   fi
   case "$1" in
     cd|main)
-      local path
-      path="$(command wt "$@" --print-path)" || return $?
-      cd "$path"
+      target_path="$("$wt_bin" "$@" --print-path)" || return $?
+      [[ -n "$target_path" ]] && cd "$target_path"
       ;;
-    new|rm|move|merge|clean)
-      local path
-      path="$(command wt "$@" --print-path)" || return $?
-      [[ -n "$path" ]] && cd "$path"
+    new|rm|mv|merge|clean)
+      target_path="$("$wt_bin" "$@" --print-path)" || return $?
+      [[ -n "$target_path" ]] && cd "$target_path"
       ;;
     *)
-      command wt "$@"
+      "$wt_bin" "$@"
       ;;
   esac
 }
@@ -135,46 +140,46 @@ wt() {
 
 const FISH_WRAPPER: &str = r#"# === agent-worktree BEGIN ===
 function wt
-  if not command -v wt &>/dev/null
-    echo "wt: command not found. Install: npm install -g agent-worktree" >&2
+  # Find the wt binary (--force-path ignores functions)
+  set -l wt_bin (type --force-path wt 2>/dev/null)
+  if test -z "$wt_bin"
+    echo "wt: binary not found. Install: npm install -g agent-worktree" >&2
     return 1
   end
   switch $argv[1]
     case cd main
-      set -l path (command wt $argv --print-path)
-      and cd $path
-    case new rm move merge clean
-      set -l path (command wt $argv --print-path)
-      and test -n "$path"
-      and cd $path
+      set -l target_path ($wt_bin $argv --print-path); or return $status
+      test -n "$target_path"; and cd $target_path
+    case new rm mv merge clean
+      set -l target_path ($wt_bin $argv --print-path); or return $status
+      test -n "$target_path"; and cd $target_path
     case '*'
-      command wt $argv
+      $wt_bin $argv
   end
 end
 # === agent-worktree END ==="#;
 
 const POWERSHELL_WRAPPER: &str = r#"# === agent-worktree BEGIN ===
 function wt {
-  $wtPath = Get-Command wt.exe -ErrorAction SilentlyContinue
-  if (-not $wtPath) {
-    Write-Error "wt: command not found. Install: npm install -g agent-worktree"
-    return
+  # Find the wt binary (works on both Windows and Unix)
+  $wtBin = Get-Command wt -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  if (-not $wtBin) {
+    Write-Error "wt: binary not found. Install: npm install -g agent-worktree"
+    return 1
   }
   switch ($args[0]) {
     { $_ -in 'cd', 'main' } {
-      $path = & wt.exe @args --print-path
-      if ($LASTEXITCODE -eq 0 -and $path) {
-        Set-Location $path
-      }
+      $targetPath = & $wtBin.Source @args --print-path
+      if ($LASTEXITCODE -ne 0) { return $LASTEXITCODE }
+      if ($targetPath) { Set-Location $targetPath }
     }
-    { $_ -in 'new', 'rm', 'move', 'merge', 'clean' } {
-      $path = & wt.exe @args --print-path
-      if ($LASTEXITCODE -eq 0 -and $path) {
-        Set-Location $path
-      }
+    { $_ -in 'new', 'rm', 'mv', 'merge', 'clean' } {
+      $targetPath = & $wtBin.Source @args --print-path
+      if ($LASTEXITCODE -ne 0) { return $LASTEXITCODE }
+      if ($targetPath) { Set-Location $targetPath }
     }
     default {
-      & wt.exe @args
+      & $wtBin.Source @args
     }
   }
 }
@@ -487,7 +492,7 @@ line2
         // Mock the config_file by directly testing the logic
         let wrapper = Shell::Bash.wrapper_script();
         let content = std::fs::read_to_string(&config_path).unwrap_or_default();
-        let content = remove_wrapper(&content);
+        let _content = remove_wrapper(&content);
         let new_content = format!("{wrapper}\n");
         std::fs::write(&config_path, new_content).unwrap();
 

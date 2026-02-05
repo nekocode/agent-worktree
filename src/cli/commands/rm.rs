@@ -19,6 +19,8 @@ pub struct RmArgs {
 }
 
 pub fn run(args: RmArgs, config: &Config, print_path: bool) -> Result<()> {
+    // Get main repo path BEFORE any destructive operations
+    let main_path = git::repo_root()?;
     let repo_name = git::repo_name()?;
     let wt_dir = config.workspaces_dir.join(&repo_name);
 
@@ -41,6 +43,9 @@ pub fn run(args: RmArgs, config: &Config, print_path: bool) -> Result<()> {
     // Remove worktree
     git::remove_worktree(&wt_path, args.force)?;
 
+    // Switch to main repo before deleting branch (avoid "not in repo" error)
+    std::env::set_current_dir(&main_path).ok();
+
     // Delete branch
     git::delete_branch(&branch, args.force).ok();
 
@@ -52,7 +57,6 @@ pub fn run(args: RmArgs, config: &Config, print_path: bool) -> Result<()> {
 
     // If we were inside the removed worktree, output main repo path for shell to cd
     if print_path && inside_target {
-        let main_path = git::repo_root()?;
         println!("{}", main_path.display());
     }
 

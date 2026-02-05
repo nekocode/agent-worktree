@@ -297,15 +297,15 @@ fn test_sync_on_trunk_fails() {
 }
 
 // ---------------------------------------------------------------------------
-// Move Command Tests
+// Mv Command Tests
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_move_help() {
+fn test_mv_help() {
     let output = Command::new(wt_binary())
-        .args(["move", "--help"])
+        .args(["mv", "--help"])
         .output()
-        .expect("Failed to execute wt move --help");
+        .expect("Failed to execute wt mv --help");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Rename"));
@@ -314,15 +314,15 @@ fn test_move_help() {
 }
 
 #[test]
-fn test_move_nonexistent() {
+fn test_mv_nonexistent() {
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
 
     let output = Command::new(wt_binary())
-        .args(["move", "old-branch", "new-branch"])
+        .args(["mv", "old-branch", "new-branch"])
         .current_dir(dir.path())
         .output()
-        .expect("Failed to execute wt move");
+        .expect("Failed to execute wt mv");
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -341,7 +341,7 @@ fn test_clean_help() {
         .expect("Failed to execute wt clean --help");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("merged") || stdout.contains("Remove"));
+    assert!(stdout.contains("diff") || stdout.contains("Remove"));
 }
 
 #[test]
@@ -642,7 +642,7 @@ fn test_sync_on_trunk_error_message() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_move_with_same_name() {
+fn test_mv_with_same_name() {
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
 
@@ -654,10 +654,10 @@ fn test_move_with_same_name() {
         .unwrap();
 
     let output = Command::new(wt_binary())
-        .args(["move", "feature-x", "feature-x"])
+        .args(["mv", "feature-x", "feature-x"])
         .current_dir(dir.path())
         .output()
-        .expect("wt move failed");
+        .expect("wt mv failed");
 
     // Should fail or no-op
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1014,12 +1014,12 @@ fn test_ls_shows_worktree_details() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_move_existing_branch() {
+fn test_mv_existing_branch() {
     let (_dir, repo, home) = setup_worktree_test_env();
 
     // Create a worktree
     let output = Command::new(wt_binary())
-        .args(["new", "move-old-name", "--print-path"])
+        .args(["new", "mv-old-name", "--print-path"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1029,13 +1029,13 @@ fn test_move_existing_branch() {
         return;
     }
 
-    // Try to move it
+    // Try to mv it
     let output = Command::new(wt_binary())
-        .args(["move", "move-old-name", "move-new-name"])
+        .args(["mv", "mv-old-name", "mv-new-name"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
-        .expect("wt move failed");
+        .expect("wt mv failed");
 
     // May succeed or fail depending on worktree state
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1440,7 +1440,7 @@ fn test_sync_on_feature_with_updates() {
 }
 
 #[test]
-fn test_clean_removes_merged_worktree() {
+fn test_clean_remvs_merged_worktree() {
     let (_dir, repo, home) = setup_worktree_test_env();
 
     // Create worktree
@@ -1462,7 +1462,7 @@ fn test_clean_removes_merged_worktree() {
         .output()
         .ok();
 
-    // Clean should identify and potentially remove it
+    // Clean should identify and potentially remv it
     let output = Command::new(wt_binary())
         .arg("clean")
         .current_dir(&repo)
@@ -1481,12 +1481,12 @@ fn test_clean_removes_merged_worktree() {
 }
 
 #[test]
-fn test_move_renames_worktree() {
+fn test_mv_renames_worktree() {
     let (_dir, repo, home) = setup_worktree_test_env();
 
     // Create worktree
     let output = Command::new(wt_binary())
-        .args(["new", "move-src", "--print-path"])
+        .args(["new", "mv-src", "--print-path"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -1498,11 +1498,11 @@ fn test_move_renames_worktree() {
 
     // Move it
     let output = Command::new(wt_binary())
-        .args(["move", "move-src", "move-dst"])
+        .args(["mv", "mv-src", "mv-dst"])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
-        .expect("wt move failed");
+        .expect("wt mv failed");
 
     // Check result
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1553,7 +1553,7 @@ fn test_cd_returns_correct_path() {
 
 #[test]
 fn test_merge_strategy_squash() {
-    let (_dir, repo, home) = setup_worktree_test_env();
+    let (_dir, _repo, _home) = setup_worktree_test_env();
 
     let output = Command::new(wt_binary())
         .args(["merge", "--help"])

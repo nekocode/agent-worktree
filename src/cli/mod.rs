@@ -58,7 +58,7 @@ enum Command {
     /// Remove a worktree and its branch
     Rm(commands::RmArgs),
 
-    /// Remove all merged worktrees
+    /// Remove worktrees with no diff from trunk
     Clean,
 
     /// Merge current worktree into trunk
@@ -68,7 +68,7 @@ enum Command {
     Sync(commands::SyncArgs),
 
     /// Rename a worktree branch
-    Move(commands::MoveArgs),
+    Mv(commands::MoveArgs),
 
     /// Install shell integration (bash/zsh/fish)
     Setup(commands::SetupArgs),
@@ -90,7 +90,7 @@ impl Cli {
             Command::Clean => commands::clean::run(&config, self.print_path),
             Command::Merge(args) => commands::merge::run(args, &config, self.print_path),
             Command::Sync(args) => commands::sync::run(args, &config),
-            Command::Move(args) => commands::r#move::run(args, &config, self.print_path),
+            Command::Mv(args) => commands::r#move::run(args, &config, self.print_path),
             Command::Setup(args) => commands::setup::run(args),
             Command::Init(args) => commands::init::run(args),
         }
@@ -190,8 +190,8 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parse_move() {
-        let cli = Cli::try_parse_from(["wt", "move", "old", "new"]);
+    fn test_cli_parse_mv() {
+        let cli = Cli::try_parse_from(["wt", "mv", "old", "new"]);
         assert!(cli.is_ok());
     }
 

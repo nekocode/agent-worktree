@@ -44,11 +44,11 @@ pub fn run(args: MoveArgs, config: &Config, print_path: bool) -> Result<()> {
     // Check if we're inside the worktree being renamed
     let inside_target = git::is_cwd_inside(&old_path);
 
+    // Move worktree to new path (updates git's internal tracking)
+    git::move_worktree(&old_path, &new_path)?;
+
     // Rename branch
     git::rename_branch(&old_branch, &args.new_branch)?;
-
-    // Rename worktree directory
-    std::fs::rename(&old_path, &new_path).map_err(|e| Error::Other(e.to_string()))?;
 
     // Rename metadata file
     let old_meta = wt_dir.join(format!("{}.status.toml", old_branch));

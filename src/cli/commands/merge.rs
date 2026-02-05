@@ -54,9 +54,13 @@ impl From<MergeStrategyArg> for MergeStrategy {
 }
 
 pub fn run(args: MergeArgs, config: &Config, print_path: bool) -> Result<()> {
+    // Get main repo path first (before any operations)
+    let main_repo = git::repo_root()?;
+
     // Handle abort
     if args.abort {
         eprintln!("Aborting merge...");
+        std::env::set_current_dir(&main_repo).map_err(|e| Error::Other(e.to_string()))?;
         abort_merge()?;
         return Ok(());
     }
@@ -64,6 +68,7 @@ pub fn run(args: MergeArgs, config: &Config, print_path: bool) -> Result<()> {
     // Handle continue
     if args.r#continue {
         eprintln!("Continuing merge...");
+        std::env::set_current_dir(&main_repo).map_err(|e| Error::Other(e.to_string()))?;
         continue_merge()?;
         return Ok(());
     }
@@ -86,17 +91,17 @@ pub fn run(args: MergeArgs, config: &Config, print_path: bool) -> Result<()> {
         ));
     }
 
-    // Check if running from inside worktree that will be deleted
+    // Check if running from inside worktree
     let repo_name = git::repo_name()?;
     let wt_path = config.workspaces_dir.join(&repo_name).join(&current);
-    let inside_target = !args.no_delete && git::is_cwd_inside(&wt_path);
+    let inside_worktree = git::is_cwd_inside(&wt_path);
 
     let strategy = args
         .strategy
         .map(MergeStrategy::from)
         .unwrap_or(config.merge_strategy);
 
-    // Run pre-merge hooks
+    // Run pre-merge hooks (in worktree, before switching to main)
     if !args.skip_hooks && !config.hooks.pre_merge.is_empty() {
         let cwd = std::env::current_dir().map_err(|e| Error::Other(e.to_string()))?;
         eprintln!("Running pre-merge hooks...");
@@ -108,6 +113,10 @@ pub fn run(args: MergeArgs, config: &Config, print_path: bool) -> Result<()> {
     let commit_count = git::commit_count(&trunk, &current).unwrap_or(0);
     eprintln!("Merging {current} into {trunk} ({commit_count} commits, {strategy:?})");
 
+    // Switch to main repo for merge operations
+    // (can't checkout trunk in worktree if main repo has it checked out)
+    std::env::set_current_dir(&main_repo).map_err(|e| Error::Other(e.to_string()))?;
+
     // Execute merge based on strategy
     match strategy {
         MergeStrategy::Squash => squash_merge(&current, &trunk)?,
@@ -115,11 +124,10 @@ pub fn run(args: MergeArgs, config: &Config, print_path: bool) -> Result<()> {
         MergeStrategy::Rebase => rebase_merge(&current, &trunk)?,
     }
 
-    // Run post-merge hooks
+    // Run post-merge hooks (in main repo)
     if !config.hooks.post_merge.is_empty() {
-        let cwd = std::env::current_dir().map_err(|e| Error::Other(e.to_string()))?;
         eprintln!("Running post-merge hooks...");
-        process::run_hooks(&config.hooks.post_merge, &cwd)
+        process::run_hooks(&config.hooks.post_merge, &main_repo)
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
@@ -130,10 +138,9 @@ pub fn run(args: MergeArgs, config: &Config, print_path: bool) -> Result<()> {
 
     eprintln!("Merge complete.");
 
-    // Output main repo path for shell to cd if we were inside deleted worktree
-    if print_path && inside_target {
-        let main_path = git::repo_root()?;
-        println!("{}", main_path.display());
+    // Output main repo path for shell to cd if we were inside worktree
+    if print_path && inside_worktree {
+        println!("{}", main_repo.display());
     }
 
     Ok(())
@@ -147,11 +154,15 @@ fn squash_merge(branch: &str, trunk: &str) -> Result<()> {
     // Squash merge
     git::merge(branch, true, false)?;
 
-    // Commit with message
-    let msg = format!("Merge branch '{}' (squashed)", branch);
-    git::commit(&msg)?;
+    // Check if there are staged changes to commit
+    if git::has_staged_changes()? {
+        let msg = format!("Merge branch '{}' (squashed)", branch);
+        git::commit(&msg)?;
+        eprintln!("Squash merged {branch} into {trunk}");
+    } else {
+        eprintln!("Nothing to merge: {branch} is already up to date with {trunk}");
+    }
 
-    eprintln!("Squash merged {branch} into {trunk}");
     Ok(())
 }
 

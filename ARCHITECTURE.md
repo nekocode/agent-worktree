@@ -51,9 +51,9 @@ wt new [branch] --snap <command>  # 创建 + snap 模式
 wt cd <branch>                    # 切换到指定 worktree
 wt ls                             # 列出 worktree 及状态
 wt main                           # 回到主仓库
-wt move <old> <new>               # 重命名 worktree 分支（old 可用 . 表示当前）
+wt mv <old> <new>                 # 重命名 worktree 分支（old 可用 . 表示当前）
 wt rm <branch> [--force]          # 删除 worktree（branch 可用 . 表示当前）
-wt clean                          # 清理所有已合并的 worktree
+wt clean                          # 清理所有与 trunk 无差异的 worktree
 ```
 
 ### 2. 工作流
@@ -86,7 +86,7 @@ wt init --trunk <branch>          # 初始化并指定主干分支
 
 ## Shell 集成
 
-`wt cd`、`wt main`、`wt new`、`wt rm`、`wt move`、`wt merge`、`wt clean` 等命令需要改变 shell 工作目录，因此需要 shell wrapper。
+`wt cd`、`wt main`、`wt new`、`wt rm`、`wt mv`、`wt merge`、`wt clean` 等命令需要改变 shell 工作目录，因此需要 shell wrapper。
 
 运行 `wt setup` 自动安装（npm 安装时会自动执行），会在 shell 配置文件中添加 wrapper 函数。
 
@@ -206,7 +206,7 @@ agent-worktree/
 │   │       ├── clean.rs # wt clean
 │   │       ├── merge.rs # wt merge [--strategy] [--into] [--no-delete]
 │   │       ├── sync.rs  # wt sync [--strategy]
-│   │       ├── move.rs  # wt move <old> <new>
+│   │       ├── move.rs  # wt mv <old> <new>
 │   │       ├── setup.rs # wt setup [--shell]
 │   │       └── init.rs  # wt init [--trunk]
 │   ├── config/

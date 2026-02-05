@@ -28,18 +28,46 @@ pub enum Error {
     Io(#[from] std::io::Error),
 }
 
-/// Get the root directory of the current git repository
+/// Get the root directory of the main git repository (not worktree)
+///
+/// Uses --git-common-dir to handle worktrees correctly.
 pub fn repo_root() -> Result<PathBuf> {
     let output = Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
+        .args(["rev-parse", "--git-common-dir"])
         .output()?;
 
     if !output.status.success() {
         return Err(Error::NotInRepo);
     }
 
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    Ok(PathBuf::from(path))
+    let git_dir = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+
+    // Convert to absolute path if relative
+    let git_dir = if git_dir.is_absolute() {
+        git_dir
+    } else {
+        std::env::current_dir()?.join(&git_dir)
+    };
+
+    // Canonicalize to resolve symlinks
+    let git_dir = git_dir.canonicalize().map_err(|_| Error::NotInRepo)?;
+
+    // Find the .git directory and return its parent
+    let git_dir = if git_dir.ends_with(".git") {
+        git_dir
+    } else {
+        // e.g. /path/to/repo/.git/worktrees/branch -> find .git
+        let mut current = git_dir.as_path();
+        loop {
+            if current.ends_with(".git") {
+                break;
+            }
+            current = current.parent().ok_or(Error::NotInRepo)?;
+        }
+        current.to_path_buf()
+    };
+
+    git_dir.parent().map(|p| p.to_path_buf()).ok_or(Error::NotInRepo)
 }
 
 /// Get the name of the current repository (directory name)
@@ -123,23 +151,35 @@ pub fn current_commit() -> Result<String> {
 
 /// Create a new worktree
 pub fn create_worktree(path: &Path, branch: &str, base: &str) -> Result<()> {
-    let output = Command::new("git")
-        .args([
-            "worktree",
-            "add",
-            "-b",
-            branch,
-            path.to_str().unwrap(),
-            base,
-        ])
-        .output()?;
+    let path_str = path.to_str().unwrap();
 
-    if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr);
-        if err.contains("already exists") {
+    // Check if branch already exists
+    if branch_exists(branch)? {
+        // Branch exists - check if it already has a worktree
+        let worktrees = list_worktrees()?;
+        if worktrees.iter().any(|wt| wt.branch.as_deref() == Some(branch)) {
             return Err(Error::WorktreeExists(branch.to_string()));
         }
-        return Err(Error::Command(err.to_string()));
+
+        // Branch exists but no worktree - just check it out
+        let output = Command::new("git")
+            .args(["worktree", "add", path_str, branch])
+            .output()?;
+
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            return Err(Error::Command(err.to_string()));
+        }
+    } else {
+        // Branch doesn't exist - create it from base
+        let output = Command::new("git")
+            .args(["worktree", "add", "-b", branch, path_str, base])
+            .output()?;
+
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            return Err(Error::Command(err.to_string()));
+        }
     }
 
     Ok(())
@@ -154,6 +194,25 @@ pub fn remove_worktree(path: &Path, force: bool) -> Result<()> {
     args.push(path.to_str().unwrap());
 
     let output = Command::new("git").args(&args).output()?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::Command(err.to_string()));
+    }
+
+    Ok(())
+}
+
+/// Move a worktree to a new path
+pub fn move_worktree(old_path: &Path, new_path: &Path) -> Result<()> {
+    let output = Command::new("git")
+        .args([
+            "worktree",
+            "move",
+            old_path.to_str().unwrap(),
+            new_path.to_str().unwrap(),
+        ])
+        .output()?;
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
@@ -235,6 +294,25 @@ pub fn is_merged(branch: &str, target: &str) -> Result<bool> {
         .any(|l| l.trim().trim_start_matches("* ") == branch))
 }
 
+/// Check if a branch has any diff from target (commits or uncommitted changes)
+///
+/// Returns true if branch has differences, false if identical to target.
+pub fn has_diff_from(branch: &str, target: &str) -> Result<bool> {
+    // Check committed diff: target...branch
+    let output = Command::new("git")
+        .args(["diff", "--quiet", &format!("{target}...{branch}")])
+        .output()?;
+
+    // exit 0 = no diff, exit 1 = has diff
+    if !output.status.success() {
+        return Ok(true);
+    }
+
+    // Also check if there are commits not in target
+    let count = commit_count(target, branch)?;
+    Ok(count > 0)
+}
+
 /// Delete a branch
 pub fn delete_branch(name: &str, force: bool) -> Result<()> {
     let flag = if force { "-D" } else { "-d" };
@@ -255,6 +333,16 @@ pub fn has_uncommitted_changes() -> Result<bool> {
         .output()?;
 
     Ok(!output.stdout.is_empty())
+}
+
+/// Check if there are staged changes ready to commit
+pub fn has_staged_changes() -> Result<bool> {
+    let output = Command::new("git")
+        .args(["diff", "--cached", "--quiet"])
+        .output()?;
+
+    // exit code 0 = no diff, exit code 1 = has diff
+    Ok(!output.status.success())
 }
 
 /// Run git merge

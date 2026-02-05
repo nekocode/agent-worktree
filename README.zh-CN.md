@@ -76,10 +76,10 @@ Agent 正常退出且有未提交更改时：
 | `wt cd <branch>` | 切换到 worktree |
 | `wt ls` | 列出 worktree 及状态 |
 | `wt main` | 返回主仓库 |
-| `wt move <old> <new>` | 重命名 worktree（`.` 表示当前） |
+| `wt mv <old> <new>` | 重命名 worktree（`.` 表示当前） |
 | `wt rm <branch>` | 删除 worktree（`.` 表示当前） |
 | `wt rm <branch> --force` | 强制删除（含未提交更改） |
-| `wt clean` | 清理所有已合并的 worktree |
+| `wt clean` | 清理与 trunk 无差异的 worktree |
 
 ### 工作流
 

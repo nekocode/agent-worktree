@@ -52,3 +52,49 @@ pub fn snap_exit_prompt() -> Result<SnapExitChoice> {
         _ => SnapExitChoice::Discard,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_display() {
+        let err = Error::Cancelled;
+        assert_eq!(err.to_string(), "user cancelled");
+    }
+
+    #[test]
+    fn test_snap_exit_choice_equality() {
+        assert_eq!(SnapExitChoice::Commit, SnapExitChoice::Commit);
+        assert_ne!(SnapExitChoice::Commit, SnapExitChoice::Reopen);
+        assert_ne!(SnapExitChoice::Reopen, SnapExitChoice::Discard);
+    }
+
+    #[test]
+    fn test_snap_exit_choice_clone() {
+        let choice = SnapExitChoice::Commit;
+        let cloned = choice;
+        assert_eq!(choice, cloned);
+    }
+
+    #[test]
+    fn test_snap_exit_choice_debug() {
+        let choice = SnapExitChoice::Reopen;
+        let debug = format!("{:?}", choice);
+        assert_eq!(debug, "Reopen");
+    }
+
+    #[test]
+    fn test_snap_exit_choice_all_variants() {
+        let variants = [
+            SnapExitChoice::Commit,
+            SnapExitChoice::Reopen,
+            SnapExitChoice::Discard,
+        ];
+        for v in variants {
+            // Each variant should be copyable and comparable
+            let _copy: SnapExitChoice = v;
+            assert!(v == v);
+        }
+    }
+}

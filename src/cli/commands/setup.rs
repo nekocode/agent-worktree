@@ -59,3 +59,46 @@ pub fn run(args: SetupArgs) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_shell_arg_to_shell_bash() {
+        let shell: Shell = ShellArg::Bash.into();
+        assert_eq!(shell, Shell::Bash);
+    }
+
+    #[test]
+    fn test_shell_arg_to_shell_zsh() {
+        let shell: Shell = ShellArg::Zsh.into();
+        assert_eq!(shell, Shell::Zsh);
+    }
+
+    #[test]
+    fn test_shell_arg_to_shell_fish() {
+        let shell: Shell = ShellArg::Fish.into();
+        assert_eq!(shell, Shell::Fish);
+    }
+
+    #[test]
+    fn test_shell_arg_to_shell_powershell() {
+        let shell: Shell = ShellArg::Powershell.into();
+        assert_eq!(shell, Shell::PowerShell);
+    }
+
+    #[test]
+    fn test_shell_arg_clone() {
+        let arg = ShellArg::Bash;
+        let cloned = arg;
+        assert!(matches!(cloned, ShellArg::Bash));
+    }
+
+    #[test]
+    fn test_shell_arg_copy() {
+        let arg = ShellArg::Fish;
+        let _copied: ShellArg = arg;
+        let _still_valid: ShellArg = arg; // Copy trait
+    }
+}

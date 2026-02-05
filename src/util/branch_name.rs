@@ -65,6 +65,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn test_generate_branch_name() {
@@ -72,6 +73,14 @@ mod tests {
         assert!(name.contains('-'));
         let parts: Vec<&str> = name.split('-').collect();
         assert_eq!(parts.len(), 2);
+    }
+
+    #[test]
+    fn test_generate_branch_name_uses_valid_words() {
+        let name = generate_branch_name();
+        let parts: Vec<&str> = name.split('-').collect();
+        assert!(ADJECTIVES.contains(&parts[0]));
+        assert!(NOUNS.contains(&parts[1]));
     }
 
     #[test]
@@ -83,5 +92,90 @@ mod tests {
         if name.starts_with("swift-fox") {
             assert!(name == "swift-fox" || name.starts_with("swift-fox-"));
         }
+    }
+
+    #[test]
+    fn test_generate_unique_no_conflicts() {
+        // Empty set - should return base name
+        let name = generate_unique_branch_name(|_| false);
+        // Should be valid adjective-noun format
+        let parts: Vec<&str> = name.split('-').collect();
+        assert_eq!(parts.len(), 2);
+    }
+
+    #[test]
+    fn test_generate_unique_with_numbered_suffix() {
+        // Use RefCell for interior mutability to work with Fn
+        use std::cell::RefCell;
+        let call_count = RefCell::new(0);
+        let name = generate_unique_branch_name(|_| {
+            let mut count = call_count.borrow_mut();
+            *count += 1;
+            *count == 1 // Only first call (base name) returns true
+        });
+        // Should have -2 suffix
+        assert!(name.ends_with("-2"));
+    }
+
+    #[test]
+    fn test_generate_unique_many_conflicts() {
+        // Simulate many conflicts with a fixed set
+        let taken: HashSet<String> = (0..50)
+            .flat_map(|_| {
+                let base = generate_branch_name();
+                (0..5).map(move |j| {
+                    if j == 0 {
+                        base.clone()
+                    } else {
+                        format!("{}-{}", base, j + 1)
+                    }
+                })
+            })
+            .collect();
+
+        // Should still generate something
+        let name = generate_unique_branch_name(|n| taken.contains(n));
+        assert!(!name.is_empty());
+    }
+
+    #[test]
+    fn test_generate_unique_exhaustive_conflicts() {
+        // Use RefCell for interior mutability
+        use std::cell::RefCell;
+        let count = RefCell::new(0);
+        let name = generate_unique_branch_name(|_| {
+            let mut c = count.borrow_mut();
+            *c += 1;
+            *c < 100 // First 99 calls return true (conflict)
+        });
+        // Should have generated something
+        assert!(!name.is_empty());
+    }
+
+    #[test]
+    fn test_generate_names_are_random() {
+        // Generate multiple names and check they're not all the same
+        let names: HashSet<String> = (0..10).map(|_| generate_branch_name()).collect();
+        // With 100 adjectives and 100 nouns, getting 10 identical names is extremely unlikely
+        assert!(names.len() > 1);
+    }
+
+    #[test]
+    fn test_adjectives_and_nouns_not_empty() {
+        assert!(!ADJECTIVES.is_empty());
+        assert!(!NOUNS.is_empty());
+    }
+
+    #[test]
+    fn test_generated_name_is_valid_git_branch() {
+        let name = generate_branch_name();
+        // Git branch names cannot contain certain characters
+        assert!(!name.contains(' '));
+        assert!(!name.contains('~'));
+        assert!(!name.contains('^'));
+        assert!(!name.contains(':'));
+        assert!(!name.starts_with('/'));
+        assert!(!name.ends_with('/'));
+        assert!(!name.contains(".."));
     }
 }

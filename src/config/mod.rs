@@ -269,4 +269,167 @@ merge_strategy = "rebase"
         let config: GlobalConfig = toml::from_str(toml_rebase).unwrap();
         assert_eq!(config.general.merge_strategy, MergeStrategy::Rebase);
     }
+
+    // =========================================================================
+    // Additional tests for better coverage
+    // =========================================================================
+
+    #[test]
+    fn test_default_merge_strategy() {
+        let strategy = default_merge_strategy();
+        assert_eq!(strategy, MergeStrategy::Squash);
+    }
+
+    #[test]
+    fn test_merge_strategy_merge() {
+        let toml = r#"[general]
+merge_strategy = "merge"
+"#;
+        let config: GlobalConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.general.merge_strategy, MergeStrategy::Merge);
+    }
+
+    #[test]
+    fn test_sync_strategy_defaults() {
+        assert_eq!(SyncStrategy::default(), SyncStrategy::Rebase);
+    }
+
+    #[test]
+    fn test_sync_strategy_parse() {
+        #[derive(Deserialize)]
+        struct TestConfig {
+            sync: SyncStrategy,
+        }
+        let toml = r#"sync = "merge""#;
+        let config: TestConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.sync, SyncStrategy::Merge);
+
+        let toml = r#"sync = "rebase""#;
+        let config: TestConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.sync, SyncStrategy::Rebase);
+    }
+
+    #[test]
+    fn test_hooks_config_defaults() {
+        let hooks = HooksConfig::default();
+        assert!(hooks.post_create.is_empty());
+        assert!(hooks.pre_merge.is_empty());
+        assert!(hooks.post_merge.is_empty());
+    }
+
+    #[test]
+    fn test_hooks_config_with_post_merge() {
+        let toml = r#"
+[hooks]
+post_merge = ["git push", "notify-team"]
+"#;
+        let config: GlobalConfig = toml::from_str(toml).unwrap();
+        assert_eq!(
+            config.hooks.post_merge,
+            vec!["git push", "notify-team"]
+        );
+    }
+
+    #[test]
+    fn test_general_config_default() {
+        let general = GeneralConfig::default();
+        assert_eq!(general.merge_strategy, MergeStrategy::Squash);
+        assert!(general.copy_files.is_empty());
+    }
+
+    #[test]
+    fn test_project_general_config_defaults() {
+        let general = ProjectGeneralConfig::default();
+        assert!(general.trunk.is_none());
+        assert!(general.copy_files.is_empty());
+    }
+
+    #[test]
+    fn test_config_base_dir() {
+        let result = Config::base_dir();
+        assert!(result.is_ok());
+        let path = result.unwrap();
+        assert!(path.to_string_lossy().contains(".agent-worktree"));
+    }
+
+    #[test]
+    fn test_error_display() {
+        let err = Error::NoHome;
+        assert_eq!(err.to_string(), "home directory not found");
+    }
+
+    #[test]
+    fn test_global_config_serialize() {
+        let config = GlobalConfig {
+            general: GeneralConfig {
+                merge_strategy: MergeStrategy::Rebase,
+                copy_files: vec![".env".to_string()],
+            },
+            hooks: HooksConfig {
+                post_create: vec!["npm install".to_string()],
+                pre_merge: vec![],
+                post_merge: vec![],
+            },
+        };
+        let serialized = toml::to_string(&config).unwrap();
+        assert!(serialized.contains("rebase"));
+        assert!(serialized.contains(".env"));
+        assert!(serialized.contains("npm install"));
+    }
+
+    #[test]
+    fn test_project_config_serialize() {
+        let config = ProjectConfig {
+            general: ProjectGeneralConfig {
+                trunk: Some("develop".to_string()),
+                copy_files: vec![".env.local".to_string()],
+            },
+            hooks: HooksConfig::default(),
+        };
+        let serialized = toml::to_string(&config).unwrap();
+        assert!(serialized.contains("develop"));
+        assert!(serialized.contains(".env.local"));
+    }
+
+    #[test]
+    fn test_merge_hooks_both_empty() {
+        let global: Vec<String> = vec![];
+        let project: Vec<String> = vec![];
+        let merged = merge_hooks(&global, &project);
+        assert!(merged.is_empty());
+    }
+
+    #[test]
+    fn test_global_config_clone() {
+        let config = GlobalConfig::default();
+        let cloned = config.clone();
+        assert_eq!(cloned.general.merge_strategy, config.general.merge_strategy);
+    }
+
+    #[test]
+    fn test_merge_strategy_equality() {
+        assert_eq!(MergeStrategy::Squash, MergeStrategy::Squash);
+        assert_ne!(MergeStrategy::Squash, MergeStrategy::Merge);
+        assert_ne!(MergeStrategy::Merge, MergeStrategy::Rebase);
+    }
+
+    #[test]
+    fn test_sync_strategy_equality() {
+        assert_eq!(SyncStrategy::Rebase, SyncStrategy::Rebase);
+        assert_ne!(SyncStrategy::Rebase, SyncStrategy::Merge);
+    }
+
+    #[test]
+    fn test_merge_strategy_copy() {
+        let strategy = MergeStrategy::Squash;
+        let copied = strategy;
+        assert_eq!(strategy, copied);
+    }
+
+    #[test]
+    fn test_config_debug() {
+        let config = GlobalConfig::default();
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("GlobalConfig"));
+    }
 }

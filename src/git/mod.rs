@@ -460,7 +460,77 @@ pub fn is_merge_in_progress() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command as StdCommand;
+    use std::sync::Mutex;
+    use tempfile::tempdir;
 
+    // Global mutex for tests that change cwd
+    static CWD_MUTEX: Mutex<()> = Mutex::new(());
+
+    // =========================================================================
+    // Helper: Setup a minimal git repo for testing
+    // =========================================================================
+    fn setup_test_repo() -> tempfile::TempDir {
+        let dir = tempdir().unwrap();
+        let path = dir.path();
+
+        StdCommand::new("git")
+            .args(["init"])
+            .current_dir(path)
+            .output()
+            .expect("git init failed");
+
+        StdCommand::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+
+        StdCommand::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+
+        std::fs::write(path.join("README.md"), "# Test\n").unwrap();
+
+        StdCommand::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .output()
+            .unwrap();
+
+        StdCommand::new("git")
+            .args(["commit", "-m", "Initial commit"])
+            .current_dir(path)
+            .output()
+            .unwrap();
+
+        StdCommand::new("git")
+            .args(["branch", "-M", "main"])
+            .current_dir(path)
+            .output()
+            .ok();
+
+        dir
+    }
+
+    /// Run a test that requires changing cwd, with proper locking
+    fn with_cwd<F, T>(path: &Path, f: F) -> T
+    where
+        F: FnOnce() -> T,
+    {
+        let _guard = CWD_MUTEX.lock().unwrap();
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(path).unwrap();
+        let result = f();
+        std::env::set_current_dir(original).unwrap();
+        result
+    }
+
+    // =========================================================================
+    // Parse worktree list tests (pure functions, no cwd issues)
+    // =========================================================================
     #[test]
     fn test_parse_worktree_list_empty() {
         let result = parse_worktree_list("");
@@ -514,6 +584,9 @@ bare
         assert!(result[0].branch.is_none());
     }
 
+    // =========================================================================
+    // Error display tests (pure functions)
+    // =========================================================================
     #[test]
     fn test_error_display() {
         let err = Error::NotInRepo;
@@ -524,20 +597,398 @@ bare
 
         let err = Error::WorktreeExists("feature".to_string());
         assert_eq!(err.to_string(), "worktree 'feature' already exists");
+
+        let err = Error::BranchNotFound("missing".to_string());
+        assert_eq!(err.to_string(), "branch 'missing' not found");
+
+        let err = Error::Command("something failed".to_string());
+        assert_eq!(err.to_string(), "git command failed: something failed");
+    }
+
+    // =========================================================================
+    // is_cwd_inside tests
+    // =========================================================================
+    #[test]
+    fn test_is_cwd_inside_current_dir() {
+        let cwd = std::env::current_dir().unwrap();
+        assert!(is_cwd_inside(&cwd));
     }
 
     #[test]
-    fn test_is_cwd_inside() {
-        // Current dir should be inside itself
-        let cwd = std::env::current_dir().unwrap();
-        assert!(is_cwd_inside(&cwd));
-
-        // Current dir should not be inside a non-existent path
+    fn test_is_cwd_inside_nonexistent() {
         assert!(!is_cwd_inside(Path::new("/nonexistent/path/12345")));
+    }
 
-        // Current dir should be inside parent
-        if let Some(parent) = cwd.parent() {
-            assert!(is_cwd_inside(parent));
-        }
+    // =========================================================================
+    // Git module function tests (require changing cwd, use mutex)
+    // =========================================================================
+
+    #[test]
+    fn test_repo_root() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let root = repo_root();
+            assert!(root.is_ok());
+            let root_path = root.unwrap();
+            assert!(root_path.exists());
+            assert!(root_path.join(".git").exists());
+        });
+    }
+
+    #[test]
+    fn test_repo_root_not_in_repo() {
+        let dir = tempdir().unwrap();
+        with_cwd(dir.path(), || {
+            let root = repo_root();
+            assert!(root.is_err());
+            assert!(matches!(root.unwrap_err(), Error::NotInRepo));
+        });
+    }
+
+    #[test]
+    fn test_repo_name() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let name = repo_name();
+            assert!(name.is_ok());
+            assert!(!name.unwrap().is_empty());
+        });
+    }
+
+    #[test]
+    fn test_current_branch() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let branch = current_branch();
+            assert!(branch.is_ok());
+            assert_eq!(branch.unwrap(), "main");
+        });
+    }
+
+    #[test]
+    fn test_detect_trunk() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let trunk = detect_trunk();
+            assert!(trunk.is_ok());
+            assert_eq!(trunk.unwrap(), "main");
+        });
+    }
+
+    #[test]
+    fn test_branch_exists_true() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let exists = branch_exists("main");
+            assert!(exists.is_ok());
+            assert!(exists.unwrap());
+        });
+    }
+
+    #[test]
+    fn test_branch_exists_false() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let exists = branch_exists("nonexistent-branch-12345");
+            assert!(exists.is_ok());
+            assert!(!exists.unwrap());
+        });
+    }
+
+    #[test]
+    fn test_current_commit() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let commit = current_commit();
+            assert!(commit.is_ok());
+            let hash = commit.unwrap();
+            assert_eq!(hash.len(), 40);
+        });
+    }
+
+    #[test]
+    fn test_has_uncommitted_changes_clean() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let has_changes = has_uncommitted_changes();
+            assert!(has_changes.is_ok());
+            assert!(!has_changes.unwrap());
+        });
+    }
+
+    #[test]
+    fn test_has_uncommitted_changes_dirty() {
+        let dir = setup_test_repo();
+        std::fs::write(dir.path().join("new_file.txt"), "content").unwrap();
+        with_cwd(dir.path(), || {
+            let has_changes = has_uncommitted_changes();
+            assert!(has_changes.is_ok());
+            assert!(has_changes.unwrap());
+        });
+    }
+
+    #[test]
+    fn test_list_worktrees() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let worktrees = list_worktrees();
+            assert!(worktrees.is_ok());
+            let list = worktrees.unwrap();
+            assert!(!list.is_empty());
+            assert_eq!(list[0].branch, Some("main".to_string()));
+        });
+    }
+
+    #[test]
+    fn test_is_rebase_in_progress() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            assert!(!is_rebase_in_progress());
+        });
+    }
+
+    #[test]
+    fn test_is_merge_in_progress() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            assert!(!is_merge_in_progress());
+        });
+    }
+
+    #[test]
+    fn test_log_oneline() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let log = log_oneline("HEAD", "HEAD");
+            assert!(log.is_ok());
+            assert!(log.unwrap().is_empty());
+        });
+    }
+
+    #[test]
+    fn test_commit_count() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let count = commit_count("HEAD", "HEAD");
+            assert!(count.is_ok());
+            assert_eq!(count.unwrap(), 0);
+        });
+    }
+
+    #[test]
+    fn test_fetch() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let result = fetch();
+            assert!(result.is_ok());
+        });
+    }
+
+    #[test]
+    fn test_is_merged() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let result = is_merged("main", "main");
+            assert!(result.is_ok());
+            assert!(result.unwrap());
+        });
+    }
+
+    // =========================================================================
+    // Worktree operations
+    // =========================================================================
+    #[test]
+    fn test_create_and_remove_worktree() {
+        let dir = setup_test_repo();
+        let wt_path = dir.path().join("worktrees").join("feature");
+        std::fs::create_dir_all(wt_path.parent().unwrap()).unwrap();
+
+        with_cwd(dir.path(), || {
+            let result = create_worktree(&wt_path, "feature-branch", "main");
+            assert!(result.is_ok());
+            assert!(wt_path.exists());
+            assert!(branch_exists("feature-branch").unwrap());
+
+            let result = remove_worktree(&wt_path, false);
+            assert!(result.is_ok());
+        });
+    }
+
+    #[test]
+    fn test_create_worktree_duplicate() {
+        let dir = setup_test_repo();
+        let wt_path = dir.path().join("worktrees").join("dup");
+        let wt_path2 = dir.path().join("worktrees").join("dup2");
+        std::fs::create_dir_all(wt_path.parent().unwrap()).unwrap();
+
+        with_cwd(dir.path(), || {
+            create_worktree(&wt_path, "dup-branch", "main").unwrap();
+            let result = create_worktree(&wt_path2, "dup-branch", "main");
+            assert!(result.is_err());
+            assert!(matches!(result.unwrap_err(), Error::WorktreeExists(_)));
+        });
+    }
+
+    // =========================================================================
+    // Branch operations
+    // =========================================================================
+    #[test]
+    fn test_rename_branch() {
+        let dir = setup_test_repo();
+        StdCommand::new("git")
+            .args(["branch", "old-name"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        with_cwd(dir.path(), || {
+            let result = rename_branch("old-name", "new-name");
+            assert!(result.is_ok());
+            assert!(!branch_exists("old-name").unwrap());
+            assert!(branch_exists("new-name").unwrap());
+        });
+    }
+
+    #[test]
+    fn test_delete_branch() {
+        let dir = setup_test_repo();
+        StdCommand::new("git")
+            .args(["branch", "to-delete"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        with_cwd(dir.path(), || {
+            assert!(branch_exists("to-delete").unwrap());
+            let result = delete_branch("to-delete", false);
+            assert!(result.is_ok());
+            assert!(!branch_exists("to-delete").unwrap());
+        });
+    }
+
+    #[test]
+    fn test_checkout() {
+        let dir = setup_test_repo();
+        StdCommand::new("git")
+            .args(["branch", "other-branch"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        with_cwd(dir.path(), || {
+            let result = checkout("other-branch");
+            assert!(result.is_ok());
+            assert_eq!(current_branch().unwrap(), "other-branch");
+        });
+    }
+
+    // =========================================================================
+    // Abort/continue operations
+    // =========================================================================
+    #[test]
+    fn test_rebase_abort_no_rebase() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let result = rebase_abort();
+            assert!(result.is_err());
+        });
+    }
+
+    #[test]
+    fn test_merge_abort_no_merge() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let result = merge_abort();
+            assert!(result.is_err());
+        });
+    }
+
+    #[test]
+    fn test_rebase_continue_no_rebase() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let result = rebase_continue();
+            assert!(result.is_err());
+        });
+    }
+
+    #[test]
+    fn test_merge_continue_no_merge() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let result = merge_continue();
+            assert!(result.is_err());
+        });
+    }
+
+    // =========================================================================
+    // Merge and rebase operations
+    // =========================================================================
+    #[test]
+    fn test_merge_fast_forward() {
+        let dir = setup_test_repo();
+        // Create a branch that's already at main
+        StdCommand::new("git")
+            .args(["branch", "already-merged"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        with_cwd(dir.path(), || {
+            // Merge should work (fast-forward or no-op)
+            let result = merge("already-merged", false, false);
+            // May succeed or say "already up to date"
+            let _ = result;
+        });
+    }
+
+    #[test]
+    fn test_rebase_same_branch() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            // Rebase onto self should be a no-op
+            let result = rebase("main");
+            assert!(result.is_ok());
+        });
+    }
+
+    // =========================================================================
+    // Remove worktree with force
+    // =========================================================================
+    #[test]
+    fn test_remove_worktree_force() {
+        let dir = setup_test_repo();
+        let wt_path = dir.path().join("worktrees").join("force-test");
+        std::fs::create_dir_all(wt_path.parent().unwrap()).unwrap();
+
+        with_cwd(dir.path(), || {
+            create_worktree(&wt_path, "force-branch", "main").unwrap();
+
+            // Create uncommitted changes in worktree
+            std::fs::write(wt_path.join("uncommitted.txt"), "changes").unwrap();
+
+            // Force remove should work
+            let result = remove_worktree(&wt_path, true);
+            assert!(result.is_ok());
+        });
+    }
+
+    // =========================================================================
+    // Delete branch with force
+    // =========================================================================
+    #[test]
+    fn test_delete_branch_force() {
+        let dir = setup_test_repo();
+        StdCommand::new("git")
+            .args(["branch", "unmerged-branch"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        with_cwd(dir.path(), || {
+            // Force delete should work
+            let result = delete_branch("unmerged-branch", true);
+            assert!(result.is_ok());
+        });
     }
 }

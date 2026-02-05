@@ -167,10 +167,10 @@ fn run_snap_mode(
             return Ok(());
         }
 
-        // Check for uncommitted changes
+        // Check for both uncommitted changes AND commits ahead of trunk
         let has_changes = std::env::set_current_dir(wt_path)
             .ok()
-            .and_then(|_| git::has_uncommitted_changes().ok())
+            .and_then(|_| git::has_changes_from_trunk(trunk).ok())
             .unwrap_or(false);
 
         if !has_changes {

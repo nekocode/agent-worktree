@@ -335,6 +335,22 @@ pub fn has_uncommitted_changes() -> Result<bool> {
     Ok(!output.stdout.is_empty())
 }
 
+/// Check if current branch has any changes compared to trunk
+///
+/// Returns true if:
+/// - There are uncommitted changes in working directory, OR
+/// - Current branch has commits ahead of trunk
+pub fn has_changes_from_trunk(trunk: &str) -> Result<bool> {
+    // Check uncommitted changes first
+    if has_uncommitted_changes()? {
+        return Ok(true);
+    }
+
+    // Check if there are commits ahead of trunk
+    let count = commit_count(trunk, "HEAD")?;
+    Ok(count > 0)
+}
+
 /// Check if there are staged changes ready to commit
 pub fn has_staged_changes() -> Result<bool> {
     let output = Command::new("git")
@@ -1077,6 +1093,75 @@ bare
             // Force delete should work
             let result = delete_branch("unmerged-branch", true);
             assert!(result.is_ok());
+        });
+    }
+
+    // =========================================================================
+    // has_changes_from_trunk tests
+    // =========================================================================
+
+    #[test]
+    fn test_has_changes_from_trunk_no_changes() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            // On main, no changes from main
+            let has = has_changes_from_trunk("main");
+            assert!(has.is_ok());
+            assert!(!has.unwrap());
+        });
+    }
+
+    #[test]
+    fn test_has_changes_from_trunk_with_committed_changes() {
+        let dir = setup_test_repo();
+
+        // Create feature branch and add a commit
+        StdCommand::new("git")
+            .args(["checkout", "-b", "feature"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        std::fs::write(dir.path().join("feature.txt"), "new feature").unwrap();
+
+        StdCommand::new("git")
+            .args(["add", "feature.txt"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        StdCommand::new("git")
+            .args(["commit", "-m", "Add feature"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        with_cwd(dir.path(), || {
+            // Feature branch has commits ahead of main
+            let has = has_changes_from_trunk("main");
+            assert!(has.is_ok());
+            assert!(has.unwrap(), "Should detect committed changes ahead of trunk");
+        });
+    }
+
+    #[test]
+    fn test_has_changes_from_trunk_with_uncommitted_changes() {
+        let dir = setup_test_repo();
+
+        // Create feature branch with uncommitted changes only
+        StdCommand::new("git")
+            .args(["checkout", "-b", "feature"])
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+
+        std::fs::write(dir.path().join("dirty.txt"), "uncommitted").unwrap();
+
+        with_cwd(dir.path(), || {
+            // Feature branch has uncommitted changes
+            let has = has_changes_from_trunk("main");
+            assert!(has.is_ok());
+            assert!(has.unwrap(), "Should detect uncommitted changes");
         });
     }
 }

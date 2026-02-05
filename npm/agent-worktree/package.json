@@ -1,6 +1,6 @@
 {
   "name": "agent-worktree",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Git worktree workflow tool for AI agents",
   "keywords": ["cli", "git", "worktree", "ai", "agent"],
   "license": "MIT",
@@ -24,10 +24,10 @@
     "postinstall": "node install.js"
   },
   "optionalDependencies": {
-    "@nekocode/agent-worktree-darwin-arm64": "0.4.1",
-    "@nekocode/agent-worktree-darwin-x64": "0.4.1",
-    "@nekocode/agent-worktree-linux-x64": "0.4.1",
-    "@nekocode/agent-worktree-win32-x64": "0.4.1"
+    "@nekocode/agent-worktree-darwin-arm64": "0.4.2",
+    "@nekocode/agent-worktree-darwin-x64": "0.4.2",
+    "@nekocode/agent-worktree-linux-x64": "0.4.2",
+    "@nekocode/agent-worktree-win32-x64": "0.4.2"
   },
   "engines": {
     "node": ">=14"

@@ -77,7 +77,8 @@ pub fn gather_context(config: &Config) -> Result<SnapContext> {
         .map(|m| m.trunk.clone())
         .unwrap_or_else(|| git::detect_trunk().unwrap_or_else(|_| "main".into()));
 
-    let has_changes = git::has_uncommitted_changes().unwrap_or(false);
+    // Check for both uncommitted changes AND commits ahead of trunk
+    let has_changes = git::has_changes_from_trunk(&trunk).unwrap_or(false);
 
     Ok(SnapContext {
         cwd,

@@ -1,6 +1,6 @@
 {
   "name": "@nekocode/agent-worktree-win32-x64",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "agent-worktree binary for Windows x64",
   "license": "MIT",
   "repository": {

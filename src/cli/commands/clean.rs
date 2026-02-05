@@ -11,8 +11,8 @@ use crate::git;
 pub fn run(config: &Config, path_file: Option<&Path>) -> Result<()> {
     // Get main repo path before any operations
     let main_path = git::repo_root()?;
-    let repo_name = git::repo_name()?;
-    let wt_dir = config.workspaces_dir.join(&repo_name);
+    let workspace_id = git::workspace_id()?;
+    let wt_dir = config.workspaces_dir.join(&workspace_id);
 
     if !wt_dir.exists() {
         eprintln!("No worktrees to clean.");

@@ -23,8 +23,8 @@ pub struct RmArgs {
 pub fn run(args: RmArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
     // Get main repo path BEFORE any destructive operations
     let main_path = git::repo_root()?;
-    let repo_name = git::repo_name()?;
-    let wt_dir = config.workspaces_dir.join(&repo_name);
+    let workspace_id = git::workspace_id()?;
+    let wt_dir = config.workspaces_dir.join(&workspace_id);
 
     // Resolve '.' to current branch
     let branch = if args.branch == "." {

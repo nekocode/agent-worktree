@@ -1,6 +1,6 @@
 [package]
 name = "agent-worktree"
-version = "0.4.5"
+version = "0.5.0"
 edition = "2021"
 description = "Git worktree workflow tool for AI coding agents"
 license = "MIT"
@@ -24,6 +24,7 @@ rand = "0.9"
 dialoguer = "0.11"
 ignore = "0.4"
 dirs = "6.0.0"
+ureq = "3"
 
 [dev-dependencies]
 tempfile = "3"

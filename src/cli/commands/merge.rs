@@ -94,8 +94,8 @@ pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result
     }
 
     // Check if running from inside worktree
-    let repo_name = git::repo_name()?;
-    let wt_path = config.workspaces_dir.join(&repo_name).join(&current);
+    let workspace_id = git::workspace_id()?;
+    let wt_path = config.workspaces_dir.join(&workspace_id).join(&current);
     let inside_worktree = git::is_cwd_inside(&wt_path);
 
     let strategy = args
@@ -253,8 +253,8 @@ fn continue_merge() -> Result<()> {
 
 /// Clean up worktree after successful merge
 fn cleanup_worktree(branch: &str, config: &Config) -> Result<()> {
-    let repo_name = git::repo_name()?;
-    let wt_dir = config.workspaces_dir.join(&repo_name);
+    let workspace_id = git::workspace_id()?;
+    let wt_dir = config.workspaces_dir.join(&workspace_id);
     let wt_path = wt_dir.join(branch);
 
     if wt_path.exists() {

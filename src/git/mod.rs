@@ -105,6 +105,25 @@ pub fn repo_name() -> Result<String> {
         .ok_or_else(|| Error::Command("cannot determine repo name".into()))
 }
 
+/// Get unique workspace ID for the current repository
+///
+/// Format: {repo_name}-{hash[0:6]} where hash is based on the absolute path.
+/// This ensures repos with the same directory name but different paths get
+/// unique workspace directories.
+pub fn workspace_id() -> Result<String> {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let root = repo_root()?;
+    let name = repo_name()?;
+
+    let mut hasher = DefaultHasher::new();
+    root.hash(&mut hasher);
+    let hash = hasher.finish();
+
+    Ok(format!("{}-{:06x}", name, hash & 0xFFFFFF))
+}
+
 /// Get the current branch name
 pub fn current_branch() -> Result<String> {
     let output = Command::new("git")
@@ -812,6 +831,42 @@ bare
             assert!(name.is_ok());
             assert!(!name.unwrap().is_empty());
         });
+    }
+
+    #[test]
+    fn test_workspace_id_format() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let id = workspace_id().unwrap();
+            // Format: {repo_name}-{hash[0:6]}
+            let parts: Vec<&str> = id.rsplitn(2, '-').collect();
+            assert_eq!(parts.len(), 2);
+            assert_eq!(parts[0].len(), 6); // hash suffix
+            assert!(parts[0].chars().all(|c: char| c.is_ascii_hexdigit()));
+        });
+    }
+
+    #[test]
+    fn test_workspace_id_deterministic() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            let id1 = workspace_id().unwrap();
+            let id2 = workspace_id().unwrap();
+            assert_eq!(id1, id2);
+        });
+    }
+
+    #[test]
+    fn test_workspace_id_unique_for_different_paths() {
+        let dir1 = setup_test_repo();
+        let dir2 = setup_test_repo();
+
+        let id1 = with_cwd(dir1.path(), || workspace_id().unwrap());
+        let id2 = with_cwd(dir2.path(), || workspace_id().unwrap());
+
+        // Same repo name (both are random tempdir names), but different paths
+        // Hash suffix should differ
+        assert_ne!(id1, id2);
     }
 
     #[test]

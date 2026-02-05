@@ -1694,11 +1694,14 @@ fn test_new_with_snap_creates_metadata() {
     assert!(output.status.success());
 
     // Check metadata file exists with snap info
-    let meta_path = home
-        .join(".agent-worktree")
-        .join("workspaces")
-        .join("repo")
-        .join("snap-meta-test.status.toml");
+    // Workspace dir is now {repo_name}-{hash}, so we need to find it dynamically
+    let workspaces_dir = home.join(".agent-worktree").join("workspaces");
+    let workspace_dir = std::fs::read_dir(&workspaces_dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .find(|e| e.file_name().to_string_lossy().starts_with("repo-"))
+        .expect("workspace directory not found");
+    let meta_path = workspace_dir.path().join("snap-meta-test.status.toml");
     assert!(meta_path.exists());
 
     let content = std::fs::read_to_string(&meta_path).unwrap();

@@ -20,8 +20,8 @@ pub struct MoveArgs {
 }
 
 pub fn run(args: MoveArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
-    let repo_name = git::repo_name()?;
-    let wt_dir = config.workspaces_dir.join(&repo_name);
+    let workspace_id = git::workspace_id()?;
+    let wt_dir = config.workspaces_dir.join(&workspace_id);
 
     // Resolve '.' to current branch
     let old_branch = if args.old_branch == "." {

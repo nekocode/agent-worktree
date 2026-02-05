@@ -64,13 +64,13 @@ pub fn run(config: &Config, path_file: Option<&Path>) -> Result<()> {
 pub fn gather_context(config: &Config) -> Result<SnapContext> {
     let cwd = std::env::current_dir().map_err(|e| Error::Other(e.to_string()))?;
     let branch = git::current_branch()?;
-    let repo_name = git::repo_name()?;
+    let workspace_id = git::workspace_id()?;
     let repo_root = git::repo_root()?;
 
     // Load metadata to get trunk
     let meta_path = config
         .workspaces_dir
-        .join(&repo_name)
+        .join(&workspace_id)
         .join(format!("{}.status.toml", branch));
 
     let meta = WorktreeMeta::load(&meta_path).ok();
@@ -157,20 +157,14 @@ pub fn perform_merge(branch: &str, trunk: &str, strategy: MergeStrategy) -> Resu
 
 /// Remove worktree, branch, and metadata
 pub fn cleanup_worktree(wt_path: &Path, branch: &str, config: &Config) -> Result<()> {
-    let repo_root = git::repo_root().ok();
-
     git::remove_worktree(wt_path, true)?;
     git::delete_branch(branch, true).ok();
 
     // Remove metadata
-    if let Some(root) = repo_root {
-        let repo_name = root
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("unknown");
+    if let Ok(workspace_id) = git::workspace_id() {
         let meta_path = config
             .workspaces_dir
-            .join(repo_name)
+            .join(&workspace_id)
             .join(format!("{branch}.status.toml"));
         std::fs::remove_file(meta_path).ok();
     }

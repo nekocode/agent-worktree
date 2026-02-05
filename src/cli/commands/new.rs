@@ -31,7 +31,7 @@ pub struct NewArgs {
 pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
     // Ensure we're in a git repo
     let repo_root = git::repo_root()?;
-    let repo_name = git::repo_name()?;
+    let workspace_id = git::workspace_id()?;
 
     // Determine trunk branch
     let trunk = config
@@ -48,7 +48,7 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     });
 
     // Worktree path
-    let wt_dir = config.workspaces_dir.join(&repo_name);
+    let wt_dir = config.workspaces_dir.join(&workspace_id);
     let wt_path = wt_dir.join(&branch);
 
     // Create workspace directory if needed
@@ -250,20 +250,14 @@ fn do_merge(wt_path: &Path, branch: &str, trunk: &str, config: &Config) -> Resul
 
 fn cleanup_worktree(wt_path: &Path, branch: &str, config: &Config) -> Result<()> {
     // Move back to main repo first
-    let repo_root = git::repo_root().ok();
-
     git::remove_worktree(wt_path, true)?;
     git::delete_branch(branch, true).ok();
 
     // Remove metadata
-    if let Some(root) = repo_root {
-        let repo_name = root
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("unknown");
+    if let Ok(workspace_id) = git::workspace_id() {
         let meta_path = config
             .workspaces_dir
-            .join(repo_name)
+            .join(&workspace_id)
             .join(format!("{branch}.status.toml"));
         std::fs::remove_file(meta_path).ok();
     }

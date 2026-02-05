@@ -17,8 +17,8 @@ pub struct CdArgs {
 }
 
 pub fn run(args: CdArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
-    let repo_name = git::repo_name()?;
-    let wt_dir = config.workspaces_dir.join(&repo_name);
+    let workspace_id = git::workspace_id()?;
+    let wt_dir = config.workspaces_dir.join(&workspace_id);
     let wt_path = wt_dir.join(&args.branch);
 
     if !wt_path.exists() {

@@ -3,9 +3,10 @@
 // ===========================================================================
 //
 // Exit codes:
-// - 0: Done (merged or discarded), stdout contains repo root path
+// - 0: Done (merged or cleaned up), path_file contains repo root
 // - 1: Error
 // - 2: Reopen agent (shell wrapper should loop)
+// - 3: Exit snap mode, stay in worktree (no cd)
 
 use std::path::{Path, PathBuf};
 
@@ -27,8 +28,8 @@ pub enum SnapAction {
     CleanupNoChanges,
     /// Merge changes and cleanup
     MergeAndCleanup,
-    /// Discard changes and cleanup
-    DiscardAndCleanup,
+    /// Exit snap mode but preserve worktree for manual handling
+    ExitPreserve,
     /// Reopen the agent
     Reopen,
 }
@@ -105,9 +106,8 @@ pub fn determine_action(ctx: &SnapContext) -> Result<SnapAction> {
 
     // Has uncommitted changes → prompt user
     match prompt::snap_exit_prompt() {
-        Ok(SnapExitChoice::Commit) => Ok(SnapAction::MergeAndCleanup),
         Ok(SnapExitChoice::Reopen) => Ok(SnapAction::Reopen),
-        Ok(SnapExitChoice::Discard) | Err(_) => Ok(SnapAction::DiscardAndCleanup),
+        Ok(SnapExitChoice::Exit) | Err(_) => Ok(SnapAction::ExitPreserve),
     }
 }
 
@@ -130,9 +130,8 @@ pub fn determine_action_with_choice(
 
     // Has uncommitted changes → use provided choice
     match choice {
-        Some(SnapExitChoice::Commit) => SnapAction::MergeAndCleanup,
         Some(SnapExitChoice::Reopen) => SnapAction::Reopen,
-        Some(SnapExitChoice::Discard) | None => SnapAction::DiscardAndCleanup,
+        Some(SnapExitChoice::Exit) | None => SnapAction::ExitPreserve,
     }
 }
 
@@ -231,11 +230,16 @@ fn execute_action(
             eprintln!("Reopening agent...");
             std::process::exit(2);
         }
-        SnapAction::DiscardAndCleanup => {
-            eprintln!("Discarding changes...");
-            cleanup_worktree(&ctx.cwd, &ctx.branch, config)?;
-            write_path_file(path_file, &ctx.repo_root)?;
-            std::process::exit(0);
+        SnapAction::ExitPreserve => {
+            eprintln!();
+            eprintln!("Exiting snap mode. Worktree preserved.");
+            eprintln!();
+            eprintln!("Your changes are safe. To continue later:");
+            eprintln!("  git add . && git commit -m 'your message'");
+            eprintln!("  wt merge    # merge and cleanup");
+            eprintln!();
+            // Exit code 3: exit snap mode, stay in worktree (no cd)
+            std::process::exit(3);
         }
     }
 }
@@ -255,7 +259,9 @@ mod tests {
     #[test]
     fn test_snap_action_equality() {
         assert_eq!(SnapAction::Reopen, SnapAction::Reopen);
+        assert_eq!(SnapAction::ExitPreserve, SnapAction::ExitPreserve);
         assert_ne!(SnapAction::Reopen, SnapAction::MergeAndCleanup);
+        assert_ne!(SnapAction::ExitPreserve, SnapAction::Reopen);
     }
 
     #[test]
@@ -279,7 +285,7 @@ mod tests {
     #[test]
     fn test_determine_no_changes() {
         // No uncommitted, no commits ahead → cleanup
-        let action = determine_action_with_choice(false, false, Some(SnapExitChoice::Commit));
+        let action = determine_action_with_choice(false, false, Some(SnapExitChoice::Exit));
         assert_eq!(action, SnapAction::CleanupNoChanges);
     }
 
@@ -291,13 +297,6 @@ mod tests {
     }
 
     #[test]
-    fn test_determine_uncommitted_commit() {
-        // Has uncommitted, user chooses commit → merge
-        let action = determine_action_with_choice(true, false, Some(SnapExitChoice::Commit));
-        assert_eq!(action, SnapAction::MergeAndCleanup);
-    }
-
-    #[test]
     fn test_determine_uncommitted_reopen() {
         // Has uncommitted, user chooses reopen → reopen
         let action = determine_action_with_choice(true, false, Some(SnapExitChoice::Reopen));
@@ -305,17 +304,17 @@ mod tests {
     }
 
     #[test]
-    fn test_determine_uncommitted_discard() {
-        // Has uncommitted, user chooses discard → discard
-        let action = determine_action_with_choice(true, true, Some(SnapExitChoice::Discard));
-        assert_eq!(action, SnapAction::DiscardAndCleanup);
+    fn test_determine_uncommitted_exit() {
+        // Has uncommitted, user chooses exit → preserve worktree
+        let action = determine_action_with_choice(true, true, Some(SnapExitChoice::Exit));
+        assert_eq!(action, SnapAction::ExitPreserve);
     }
 
     #[test]
-    fn test_determine_uncommitted_none_defaults_to_discard() {
-        // Has uncommitted, no choice → discard
+    fn test_determine_uncommitted_none_defaults_to_exit() {
+        // Has uncommitted, no choice → preserve worktree
         let action = determine_action_with_choice(true, false, None);
-        assert_eq!(action, SnapAction::DiscardAndCleanup);
+        assert_eq!(action, SnapAction::ExitPreserve);
     }
 
     // -----------------------------------------------------------------------

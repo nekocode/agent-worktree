@@ -35,7 +35,7 @@ pub enum Error {
     #[error("config error: {0}")]
     Config(#[from] crate::config::Error),
 
-    #[error("git error: {0}")]
+    #[error("{0}")]
     Git(#[from] crate::git::Error),
 
     #[error("not in a git repository")]

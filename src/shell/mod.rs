@@ -147,7 +147,9 @@ wt() {
   case "$1" in
     cd|main)
       "$wt_bin" "$@" --path-file "$path_file" || return $?
-      [[ -f "$path_file" ]] && { target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"; }
+      if [[ -f "$path_file" ]]; then
+        target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"
+      fi
       ;;
     new)
       # Check for snap mode (-s/--snap)
@@ -173,8 +175,12 @@ wt() {
               fi
               "$wt_bin" snap-continue --path-file "$path_file"
               local continue_status=$?
+              # 0: done, cd to main; 2: reopen agent; 3: exit, stay in worktree
               if [[ $continue_status -eq 0 ]] && [[ -f "$path_file" ]]; then
                 target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"
+                break
+              elif [[ $continue_status -eq 3 ]]; then
+                rm -f "$path_file"
                 break
               elif [[ $continue_status -ne 2 ]]; then
                 rm -f "$path_file"
@@ -185,12 +191,16 @@ wt() {
         fi
       else
         "$wt_bin" "$@" --path-file "$path_file" || return $?
-        [[ -f "$path_file" ]] && { target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"; }
+        if [[ -f "$path_file" ]]; then
+          target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"
+        fi
       fi
       ;;
     rm|mv|merge|clean)
       "$wt_bin" "$@" --path-file "$path_file" || return $?
-      [[ -f "$path_file" ]] && { target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"; }
+      if [[ -f "$path_file" ]]; then
+        target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"
+      fi
       ;;
     *)
       "$wt_bin" "$@"
@@ -214,7 +224,7 @@ function wt
   switch $argv[1]
     case cd main
       $wt_bin $argv --path-file $path_file; or begin; rm -f $path_file; return $status; end
-      test -f $path_file; and cd (cat $path_file); rm -f $path_file
+      if test -f $path_file; cd (cat $path_file); rm -f $path_file; end
     case new
       if contains -- -s $argv; or contains -- --snap $argv
         $wt_bin $argv --path-file $path_file; or begin; rm -f $path_file; return $status; end
@@ -237,8 +247,12 @@ function wt
               end
               $wt_bin snap-continue --path-file $path_file
               set -l continue_status $status
+              # 0: done, cd to main; 2: reopen agent; 3: exit, stay in worktree
               if test $continue_status -eq 0; and test -f $path_file
                 cd (cat $path_file); rm -f $path_file
+                break
+              else if test $continue_status -eq 3
+                rm -f $path_file
                 break
               else if test $continue_status -ne 2
                 rm -f $path_file
@@ -249,11 +263,11 @@ function wt
         end
       else
         $wt_bin $argv --path-file $path_file; or begin; rm -f $path_file; return $status; end
-        test -f $path_file; and cd (cat $path_file); rm -f $path_file
+        if test -f $path_file; cd (cat $path_file); rm -f $path_file; end
       end
     case rm mv merge clean
       $wt_bin $argv --path-file $path_file; or begin; rm -f $path_file; return $status; end
-      test -f $path_file; and cd (cat $path_file); rm -f $path_file
+      if test -f $path_file; cd (cat $path_file); rm -f $path_file; end
     case '*'
       rm -f $path_file
       $wt_bin $argv
@@ -303,8 +317,12 @@ function wt {
               }
               & $wtBin.Source snap-continue --path-file $pathFile
               $continueStatus = $LASTEXITCODE
+              # 0: done, cd to main; 2: reopen agent; 3: exit, stay in worktree
               if ($continueStatus -eq 0 -and (Test-Path $pathFile)) {
                 Set-Location (Get-Content $pathFile); Remove-Item $pathFile
+                break
+              } elseif ($continueStatus -eq 3) {
+                Remove-Item $pathFile -ErrorAction SilentlyContinue
                 break
               } elseif ($continueStatus -ne 2) {
                 Remove-Item $pathFile -ErrorAction SilentlyContinue

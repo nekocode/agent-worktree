@@ -127,11 +127,26 @@ wt new fix-bug -s cursor  # 指定分支名
 
 ### Agent 退出处理
 
-**正常退出**，检查 git 状态，如果有未提交更改，提供选项：
+**正常退出**，检查 git 状态：
+
+| 状态 | 行为 |
+|------|------|
+| 无改动（uncommitted=❌, commits=❌） | 清理 worktree |
+| 只有 commits（uncommitted=❌, commits=✅） | 自动 merge 并清理 |
+| 有未提交改动（uncommitted=✅） | prompt 选择 |
+
+Prompt 选项（支持快捷键）：
 ```
-[c] 运行 git commit，完成后继续 merge
-[r] 重新打开 agent 继续工作
-[x] 放弃更改，直接退出
+[r] Reopen agent (let agent commit)
+[q] Exit snap mode
+```
+
+选择 `[q]` 退出时：
+- 保留在当前 worktree（不 cd 到 main）
+- worktree 完整保留，后续可手动处理：
+```bash
+git add . && git commit -m 'message'
+wt merge          # merge 并清理
 ```
 
 **异常退出**（crash / Ctrl+C），worktree 保留为普通 worktree

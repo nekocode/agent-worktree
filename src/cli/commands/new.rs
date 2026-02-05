@@ -187,17 +187,18 @@ fn run_snap_mode(
 
         // Has uncommitted changes → prompt user
         match prompt::snap_exit_prompt() {
-            Ok(SnapExitChoice::Commit) => {
-                do_merge(wt_path, branch, trunk, config)?;
-                return Ok(());
-            }
             Ok(SnapExitChoice::Reopen) => {
                 eprintln!("Reopening agent...");
                 continue;
             }
-            Ok(SnapExitChoice::Discard) | Err(_) => {
-                eprintln!("Discarding changes...");
-                cleanup_worktree(wt_path, branch, config)?;
+            Ok(SnapExitChoice::Exit) | Err(_) => {
+                eprintln!();
+                eprintln!("Exiting snap mode. Worktree preserved.");
+                eprintln!();
+                eprintln!("Your changes are safe. To continue later:");
+                eprintln!("  git add . && git commit -m 'your message'");
+                eprintln!("  wt merge    # merge and cleanup");
+                eprintln!();
                 return Ok(());
             }
         }

@@ -2,7 +2,7 @@
 // prompt - Interactive User Input
 // ===========================================================================
 
-use dialoguer::{Confirm, Select};
+use dialoguer::Confirm;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -27,30 +27,35 @@ pub fn confirm(message: &str) -> Result<bool> {
 /// Present options after agent exits with uncommitted changes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SnapExitChoice {
-    Commit,
     Reopen,
-    Discard,
+    Exit,
+}
+
+/// Parse single character input to choice
+pub fn parse_snap_choice(input: &str) -> Option<SnapExitChoice> {
+    match input.trim().to_lowercase().as_str() {
+        "r" => Some(SnapExitChoice::Reopen),
+        "q" => Some(SnapExitChoice::Exit),
+        _ => None,
+    }
 }
 
 pub fn snap_exit_prompt() -> Result<SnapExitChoice> {
-    let items = &[
-        "[c] Commit changes and merge",
-        "[r] Reopen agent to continue",
-        "[x] Discard changes and exit",
-    ];
+    use std::io::{self, Write};
 
-    let selection = Select::new()
-        .with_prompt("Worktree has uncommitted changes")
-        .items(items)
-        .default(0)
-        .interact()
-        .map_err(|_| Error::Cancelled)?;
+    eprintln!();
+    eprintln!("Worktree has uncommitted changes.");
+    eprintln!();
+    eprintln!("  [r] Reopen agent (let agent commit)");
+    eprintln!("  [q] Exit snap mode (commit manually)");
+    eprintln!();
+    eprint!("[r/q]: ");
+    io::stderr().flush().map_err(Error::Io)?;
 
-    Ok(match selection {
-        0 => SnapExitChoice::Commit,
-        1 => SnapExitChoice::Reopen,
-        _ => SnapExitChoice::Discard,
-    })
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).map_err(Error::Io)?;
+
+    parse_snap_choice(&input).ok_or(Error::Cancelled)
 }
 
 #[cfg(test)]
@@ -65,14 +70,14 @@ mod tests {
 
     #[test]
     fn test_snap_exit_choice_equality() {
-        assert_eq!(SnapExitChoice::Commit, SnapExitChoice::Commit);
-        assert_ne!(SnapExitChoice::Commit, SnapExitChoice::Reopen);
-        assert_ne!(SnapExitChoice::Reopen, SnapExitChoice::Discard);
+        assert_eq!(SnapExitChoice::Reopen, SnapExitChoice::Reopen);
+        assert_eq!(SnapExitChoice::Exit, SnapExitChoice::Exit);
+        assert_ne!(SnapExitChoice::Reopen, SnapExitChoice::Exit);
     }
 
     #[test]
     fn test_snap_exit_choice_clone() {
-        let choice = SnapExitChoice::Commit;
+        let choice = SnapExitChoice::Reopen;
         let cloned = choice;
         assert_eq!(choice, cloned);
     }
@@ -86,15 +91,32 @@ mod tests {
 
     #[test]
     fn test_snap_exit_choice_all_variants() {
-        let variants = [
-            SnapExitChoice::Commit,
-            SnapExitChoice::Reopen,
-            SnapExitChoice::Discard,
-        ];
+        let variants = [SnapExitChoice::Reopen, SnapExitChoice::Exit];
         for v in variants {
-            // Each variant should be copyable and comparable
             let _copy: SnapExitChoice = v;
             assert!(v == v);
         }
+    }
+
+    #[test]
+    fn test_parse_snap_choice_r() {
+        assert_eq!(parse_snap_choice("r"), Some(SnapExitChoice::Reopen));
+        assert_eq!(parse_snap_choice("R"), Some(SnapExitChoice::Reopen));
+        assert_eq!(parse_snap_choice(" r "), Some(SnapExitChoice::Reopen));
+    }
+
+    #[test]
+    fn test_parse_snap_choice_q() {
+        assert_eq!(parse_snap_choice("q"), Some(SnapExitChoice::Exit));
+        assert_eq!(parse_snap_choice("Q"), Some(SnapExitChoice::Exit));
+        assert_eq!(parse_snap_choice(" q\n"), Some(SnapExitChoice::Exit));
+    }
+
+    #[test]
+    fn test_parse_snap_choice_invalid() {
+        assert_eq!(parse_snap_choice(""), None);
+        assert_eq!(parse_snap_choice("x"), None);
+        assert_eq!(parse_snap_choice("c"), None);
+        assert_eq!(parse_snap_choice("reopen"), None);
     }
 }

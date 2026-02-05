@@ -9,7 +9,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("git command failed: {0}")]
+    #[error("{0}")]
     Command(String),
 
     #[error("not in a git repository")]
@@ -26,6 +26,32 @@ pub enum Error {
 
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+}
+
+/// Clean git stderr to user-friendly message
+fn clean_git_error(stderr: &str) -> String {
+    let msg = stderr.trim();
+
+    // Remove "fatal: " or "error: " prefix
+    let msg = msg
+        .strip_prefix("fatal: ")
+        .or_else(|| msg.strip_prefix("error: "))
+        .unwrap_or(msg);
+
+    // Special case: worktree has uncommitted changes
+    // "'/path/to/branch' contains modified or untracked files, use --force to delete it"
+    if msg.contains("contains modified or untracked files") {
+        // Extract branch name from path (last component)
+        if let Some(start) = msg.find('\'') {
+            if let Some(end) = msg[start + 1..].find('\'') {
+                let path = &msg[start + 1..start + 1 + end];
+                let branch = path.rsplit('/').next().unwrap_or(path);
+                return format!("worktree '{branch}' has uncommitted changes, use --force");
+            }
+        }
+    }
+
+    msg.to_string()
 }
 
 /// Get the root directory of the main git repository (not worktree)
@@ -168,7 +194,7 @@ pub fn create_worktree(path: &Path, branch: &str, base: &str) -> Result<()> {
 
         if !output.status.success() {
             let err = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::Command(err.to_string()));
+            return Err(Error::Command(clean_git_error(&err)));
         }
     } else {
         // Branch doesn't exist - create it from base
@@ -178,7 +204,7 @@ pub fn create_worktree(path: &Path, branch: &str, base: &str) -> Result<()> {
 
         if !output.status.success() {
             let err = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::Command(err.to_string()));
+            return Err(Error::Command(clean_git_error(&err)));
         }
     }
 
@@ -197,7 +223,7 @@ pub fn remove_worktree(path: &Path, force: bool) -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -216,7 +242,7 @@ pub fn move_worktree(old_path: &Path, new_path: &Path) -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -320,7 +346,7 @@ pub fn delete_branch(name: &str, force: bool) -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -376,7 +402,7 @@ pub fn merge(branch: &str, squash: bool, no_ff: bool) -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -388,7 +414,7 @@ pub fn rebase(onto: &str) -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -402,7 +428,7 @@ pub fn rename_branch(old: &str, new: &str) -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -414,7 +440,7 @@ pub fn checkout(branch: &str) -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -428,7 +454,7 @@ pub fn commit(message: &str) -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -484,7 +510,7 @@ pub fn rebase_abort() -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -498,7 +524,7 @@ pub fn rebase_continue() -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -510,7 +536,7 @@ pub fn merge_abort() -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -522,7 +548,7 @@ pub fn merge_continue() -> Result<()> {
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(err.to_string()));
+        return Err(Error::Command(clean_git_error(&err)));
     }
 
     Ok(())
@@ -706,7 +732,36 @@ bare
         assert_eq!(err.to_string(), "branch 'missing' not found");
 
         let err = Error::Command("something failed".to_string());
-        assert_eq!(err.to_string(), "git command failed: something failed");
+        assert_eq!(err.to_string(), "something failed");
+    }
+
+    // =========================================================================
+    // clean_git_error tests
+    // =========================================================================
+    #[test]
+    fn test_clean_git_error_fatal_prefix() {
+        let msg = clean_git_error("fatal: invalid reference: xxx");
+        assert_eq!(msg, "invalid reference: xxx");
+    }
+
+    #[test]
+    fn test_clean_git_error_error_prefix() {
+        let msg = clean_git_error("error: some git error");
+        assert_eq!(msg, "some git error");
+    }
+
+    #[test]
+    fn test_clean_git_error_worktree_uncommitted() {
+        let msg = clean_git_error(
+            "fatal: '/Users/foo/.agent-worktree/workspaces/proj/branch' contains modified or untracked files, use --force to delete it",
+        );
+        assert_eq!(msg, "worktree 'branch' has uncommitted changes, use --force");
+    }
+
+    #[test]
+    fn test_clean_git_error_no_prefix() {
+        let msg = clean_git_error("some plain message");
+        assert_eq!(msg, "some plain message");
     }
 
     // =========================================================================

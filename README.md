@@ -59,9 +59,8 @@ Flow: Create worktree → Enter → Run agent → [Develop] → Agent exits → 
 
 When the agent exits normally with uncommitted changes:
 ```
-[c] Run git commit, then merge
-[r] Reopen agent to continue
-[x] Discard changes and exit
+[r] Reopen agent (let agent commit)
+[q] Exit snap mode (commit manually)
 ```
 
 ## Commands

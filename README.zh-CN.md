@@ -59,9 +59,8 @@ wt new -s "aider --model sonnet"  # 带参数的命令
 
 Agent 正常退出且有未提交更改时：
 ```
-[c] 运行 git commit，然后合并
-[r] 重新打开 agent 继续工作
-[x] 放弃更改并退出
+[r] 重新打开 agent（让 agent 提交）
+[q] 退出 snap mode（手动提交）
 ```
 
 ## 命令

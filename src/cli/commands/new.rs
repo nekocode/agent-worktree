@@ -167,67 +167,28 @@ fn run_snap_mode(
             return Ok(());
         }
 
-        // Check for both uncommitted changes AND commits ahead of trunk
-        let has_changes = std::env::set_current_dir(wt_path)
-            .ok()
-            .and_then(|_| git::has_changes_from_trunk(trunk).ok())
-            .unwrap_or(false);
+        // Check change state
+        std::env::set_current_dir(wt_path).map_err(|e| Error::Other(e.to_string()))?;
+        let has_uncommitted = git::has_uncommitted_changes().unwrap_or(false);
+        let has_commits_ahead = git::commit_count(trunk, "HEAD").unwrap_or(0) > 0;
 
-        if !has_changes {
-            // No changes, clean up
+        // No changes at all → cleanup
+        if !has_uncommitted && !has_commits_ahead {
             eprintln!("No changes detected. Cleaning up...");
             cleanup_worktree(wt_path, branch, config)?;
             return Ok(());
         }
 
-        // Prompt user
+        // Only committed changes → auto merge (no prompt)
+        if !has_uncommitted && has_commits_ahead {
+            do_merge(wt_path, branch, trunk, config)?;
+            return Ok(());
+        }
+
+        // Has uncommitted changes → prompt user
         match prompt::snap_exit_prompt() {
             Ok(SnapExitChoice::Commit) => {
-                // Run pre-merge hooks
-                if !config.hooks.pre_merge.is_empty() {
-                    eprintln!("Running pre-merge hooks...");
-                    process::run_hooks(&config.hooks.pre_merge, wt_path)
-                        .map_err(|e| Error::Other(e.to_string()))?;
-                }
-
-                // Perform actual merge
-                eprintln!("Merging {} into {}...", branch, trunk);
-
-                // Get repo root to switch to trunk
-                let repo_root = git::repo_root()?;
-
-                // Switch to trunk in main repo
-                std::env::set_current_dir(&repo_root).map_err(|e| Error::Other(e.to_string()))?;
-                git::checkout(trunk)?;
-
-                // Merge the branch
-                match config.merge_strategy {
-                    crate::config::MergeStrategy::Squash => {
-                        git::merge(branch, true, false)?;
-                        // Squash merge needs a commit
-                        git::commit(&format!("Merge branch '{}'", branch))?;
-                    }
-                    crate::config::MergeStrategy::Merge => {
-                        git::merge(branch, false, true)?;
-                    }
-                    crate::config::MergeStrategy::Rebase => {
-                        git::checkout(branch)?;
-                        git::rebase(trunk)?;
-                        git::checkout(trunk)?;
-                        git::merge(branch, false, true)?;
-                    }
-                }
-
-                eprintln!("Merged {} into {}", branch, trunk);
-
-                // Run post-merge hooks
-                if !config.hooks.post_merge.is_empty() {
-                    eprintln!("Running post-merge hooks...");
-                    process::run_hooks(&config.hooks.post_merge, &repo_root)
-                        .map_err(|e| Error::Other(e.to_string()))?;
-                }
-
-                cleanup_worktree(wt_path, branch, config)?;
+                do_merge(wt_path, branch, trunk, config)?;
                 return Ok(());
             }
             Ok(SnapExitChoice::Reopen) => {
@@ -241,6 +202,49 @@ fn run_snap_mode(
             }
         }
     }
+}
+
+fn do_merge(wt_path: &Path, branch: &str, trunk: &str, config: &Config) -> Result<()> {
+    // Run pre-merge hooks
+    if !config.hooks.pre_merge.is_empty() {
+        eprintln!("Running pre-merge hooks...");
+        process::run_hooks(&config.hooks.pre_merge, wt_path)
+            .map_err(|e| Error::Other(e.to_string()))?;
+    }
+
+    eprintln!("Merging {} into {}...", branch, trunk);
+
+    let repo_root = git::repo_root()?;
+    std::env::set_current_dir(&repo_root).map_err(|e| Error::Other(e.to_string()))?;
+    git::checkout(trunk)?;
+
+    match config.merge_strategy {
+        crate::config::MergeStrategy::Squash => {
+            git::merge(branch, true, false)?;
+            git::commit(&format!("Merge branch '{}'", branch))?;
+        }
+        crate::config::MergeStrategy::Merge => {
+            git::merge(branch, false, true)?;
+        }
+        crate::config::MergeStrategy::Rebase => {
+            git::checkout(branch)?;
+            git::rebase(trunk)?;
+            git::checkout(trunk)?;
+            git::merge(branch, false, true)?;
+        }
+    }
+
+    eprintln!("Merged {} into {}", branch, trunk);
+
+    // Run post-merge hooks
+    if !config.hooks.post_merge.is_empty() {
+        eprintln!("Running post-merge hooks...");
+        process::run_hooks(&config.hooks.post_merge, &repo_root)
+            .map_err(|e| Error::Other(e.to_string()))?;
+    }
+
+    cleanup_worktree(wt_path, branch, config)?;
+    Ok(())
 }
 
 fn cleanup_worktree(wt_path: &Path, branch: &str, config: &Config) -> Result<()> {

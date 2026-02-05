@@ -40,7 +40,8 @@ pub struct SnapContext {
     pub branch: String,
     pub trunk: String,
     pub repo_root: PathBuf,
-    pub has_changes: bool,
+    pub has_uncommitted: bool,
+    pub has_commits_ahead: bool,
 }
 
 // ===========================================================================
@@ -77,24 +78,32 @@ pub fn gather_context(config: &Config) -> Result<SnapContext> {
         .map(|m| m.trunk.clone())
         .unwrap_or_else(|| git::detect_trunk().unwrap_or_else(|_| "main".into()));
 
-    // Check for both uncommitted changes AND commits ahead of trunk
-    let has_changes = git::has_changes_from_trunk(&trunk).unwrap_or(false);
+    let has_uncommitted = git::has_uncommitted_changes().unwrap_or(false);
+    let has_commits_ahead = git::commit_count(&trunk, "HEAD").unwrap_or(0) > 0;
 
     Ok(SnapContext {
         cwd,
         branch,
         trunk,
         repo_root,
-        has_changes,
+        has_uncommitted,
+        has_commits_ahead,
     })
 }
 
 /// Determine action based on context and user choice
 pub fn determine_action(ctx: &SnapContext) -> Result<SnapAction> {
-    if !ctx.has_changes {
+    // No changes at all → cleanup
+    if !ctx.has_uncommitted && !ctx.has_commits_ahead {
         return Ok(SnapAction::CleanupNoChanges);
     }
 
+    // Only committed changes → auto merge
+    if !ctx.has_uncommitted && ctx.has_commits_ahead {
+        return Ok(SnapAction::MergeAndCleanup);
+    }
+
+    // Has uncommitted changes → prompt user
     match prompt::snap_exit_prompt() {
         Ok(SnapExitChoice::Commit) => Ok(SnapAction::MergeAndCleanup),
         Ok(SnapExitChoice::Reopen) => Ok(SnapAction::Reopen),
@@ -105,13 +114,21 @@ pub fn determine_action(ctx: &SnapContext) -> Result<SnapAction> {
 /// Determine action without prompt (for testing)
 #[cfg(test)]
 pub fn determine_action_with_choice(
-    has_changes: bool,
+    has_uncommitted: bool,
+    has_commits_ahead: bool,
     choice: Option<SnapExitChoice>,
 ) -> SnapAction {
-    if !has_changes {
+    // No changes at all → cleanup
+    if !has_uncommitted && !has_commits_ahead {
         return SnapAction::CleanupNoChanges;
     }
 
+    // Only committed changes → auto merge
+    if !has_uncommitted && has_commits_ahead {
+        return SnapAction::MergeAndCleanup;
+    }
+
+    // Has uncommitted changes → use provided choice
     match choice {
         Some(SnapExitChoice::Commit) => SnapAction::MergeAndCleanup,
         Some(SnapExitChoice::Reopen) => SnapAction::Reopen,
@@ -261,31 +278,43 @@ mod tests {
 
     #[test]
     fn test_determine_no_changes() {
-        let action = determine_action_with_choice(false, Some(SnapExitChoice::Commit));
+        // No uncommitted, no commits ahead → cleanup
+        let action = determine_action_with_choice(false, false, Some(SnapExitChoice::Commit));
         assert_eq!(action, SnapAction::CleanupNoChanges);
     }
 
     #[test]
-    fn test_determine_commit() {
-        let action = determine_action_with_choice(true, Some(SnapExitChoice::Commit));
+    fn test_determine_only_commits_ahead_auto_merges() {
+        // No uncommitted but has commits ahead → auto merge (no prompt needed)
+        let action = determine_action_with_choice(false, true, None);
         assert_eq!(action, SnapAction::MergeAndCleanup);
     }
 
     #[test]
-    fn test_determine_reopen() {
-        let action = determine_action_with_choice(true, Some(SnapExitChoice::Reopen));
+    fn test_determine_uncommitted_commit() {
+        // Has uncommitted, user chooses commit → merge
+        let action = determine_action_with_choice(true, false, Some(SnapExitChoice::Commit));
+        assert_eq!(action, SnapAction::MergeAndCleanup);
+    }
+
+    #[test]
+    fn test_determine_uncommitted_reopen() {
+        // Has uncommitted, user chooses reopen → reopen
+        let action = determine_action_with_choice(true, false, Some(SnapExitChoice::Reopen));
         assert_eq!(action, SnapAction::Reopen);
     }
 
     #[test]
-    fn test_determine_discard() {
-        let action = determine_action_with_choice(true, Some(SnapExitChoice::Discard));
+    fn test_determine_uncommitted_discard() {
+        // Has uncommitted, user chooses discard → discard
+        let action = determine_action_with_choice(true, true, Some(SnapExitChoice::Discard));
         assert_eq!(action, SnapAction::DiscardAndCleanup);
     }
 
     #[test]
-    fn test_determine_none_defaults_to_discard() {
-        let action = determine_action_with_choice(true, None);
+    fn test_determine_uncommitted_none_defaults_to_discard() {
+        // Has uncommitted, no choice → discard
+        let action = determine_action_with_choice(true, false, None);
         assert_eq!(action, SnapAction::DiscardAndCleanup);
     }
 
@@ -300,7 +329,8 @@ mod tests {
             branch: "feature".to_string(),
             trunk: "main".to_string(),
             repo_root: PathBuf::from("/tmp/repo"),
-            has_changes: true,
+            has_uncommitted: true,
+            has_commits_ahead: false,
         };
         let debug = format!("{:?}", ctx);
         assert!(debug.contains("feature"));

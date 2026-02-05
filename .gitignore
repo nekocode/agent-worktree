@@ -1,0 +1,16 @@
+/target
+CLAUDE.md
+task_plan.md
+findings.md
+progress.md
+
+# npm build artifacts
+npm/*/bin/wt
+npm/*/bin/wt.exe
+npm/*/*.tgz
+
+# Added by cargo
+#
+# already existing elements were commented out
+
+#/target

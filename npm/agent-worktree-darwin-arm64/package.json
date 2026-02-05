@@ -1,0 +1,13 @@
+{
+  "name": "@nekocode/agent-worktree-darwin-arm64",
+  "version": "0.1.0",
+  "description": "agent-worktree binary for macOS ARM64",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nekocode/agent-worktree"
+  },
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "files": ["bin/wt"]
+}

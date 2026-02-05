@@ -2,9 +2,13 @@
 // update - Version Update Check
 // ===========================================================================
 
-use rand::Rng;
+use std::path::Path;
+use std::time::{Duration, SystemTime};
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+const CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60); // 24 hours
+const MARKER_FILE: &str = "last_update_check";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -13,11 +17,30 @@ pub enum Error {
 
     #[error("parse error: {0}")]
     Parse(String),
+
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
-/// Check if we should perform update check (10% probability)
-pub fn should_check() -> bool {
-    rand::rng().random_ratio(1, 10)
+/// Check if we should perform update check (once per day)
+pub fn should_check(base_dir: &Path) -> bool {
+    let marker = base_dir.join(MARKER_FILE);
+    if !marker.exists() {
+        return true;
+    }
+
+    marker
+        .metadata()
+        .and_then(|m| m.modified())
+        .map(|mtime| SystemTime::now().duration_since(mtime).unwrap_or_default() > CHECK_INTERVAL)
+        .unwrap_or(true)
+}
+
+/// Mark that we've checked for updates
+pub fn mark_checked(base_dir: &Path) -> Result<()> {
+    let marker = base_dir.join(MARKER_FILE);
+    std::fs::write(&marker, "")?;
+    Ok(())
 }
 
 /// Compare versions: returns true if latest > current
@@ -81,20 +104,47 @@ pub fn check_update(current_version: &str) -> Result<Option<String>> {
 mod tests {
     use super::*;
 
+    use tempfile::TempDir;
+
     #[test]
-    fn test_should_check_returns_bool() {
-        // Run multiple times to verify it returns bool (not panic)
-        for _ in 0..100 {
-            let _ = should_check();
-        }
+    fn test_should_check_no_marker_file() {
+        // No marker file = should check
+        let temp = TempDir::new().unwrap();
+        assert!(should_check(temp.path()));
     }
 
     #[test]
-    fn test_should_check_roughly_10_percent() {
-        // Statistical test: run 1000 times, expect ~100 hits (10%)
-        // Allow 5-20% range to account for randomness
-        let hits: usize = (0..1000).filter(|_| should_check()).count();
-        assert!(hits >= 50 && hits <= 200, "Expected ~10% but got {}%", hits / 10);
+    fn test_should_check_fresh_marker() {
+        // Fresh marker (just created) = should NOT check
+        let temp = TempDir::new().unwrap();
+        let marker = temp.path().join("last_update_check");
+        std::fs::write(&marker, "").unwrap();
+        assert!(!should_check(temp.path()));
+    }
+
+    #[test]
+    fn test_should_check_stale_marker() {
+        // Marker older than 24 hours = should check
+        let temp = TempDir::new().unwrap();
+        let marker = temp.path().join("last_update_check");
+        std::fs::write(&marker, "").unwrap();
+
+        // Set mtime to 25 hours ago
+        let old_time = std::time::SystemTime::now() - std::time::Duration::from_secs(25 * 60 * 60);
+        filetime::set_file_mtime(&marker, filetime::FileTime::from_system_time(old_time)).unwrap();
+
+        assert!(should_check(temp.path()));
+    }
+
+    #[test]
+    fn test_mark_checked_creates_marker() {
+        let temp = TempDir::new().unwrap();
+        let marker = temp.path().join("last_update_check");
+        assert!(!marker.exists());
+
+        mark_checked(temp.path()).unwrap();
+
+        assert!(marker.exists());
     }
 
     #[test]

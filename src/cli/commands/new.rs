@@ -104,21 +104,42 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
 }
 
 fn copy_files(from: &Path, to: &Path, config: &Config) -> Result<()> {
+    use ignore::overrides::OverrideBuilder;
+    use ignore::WalkBuilder;
+
+    if config.copy_files.is_empty() {
+        return Ok(());
+    }
+
+    // Build gitignore-style matcher
+    // Patterns work like .gitignore: "*.md" matches all .md files, "/*.md" matches only root
+    let mut builder = OverrideBuilder::new(from);
     for pattern in &config.copy_files {
-        let entries = glob::glob(&from.join(pattern).to_string_lossy())
-            .map_err(|e| Error::Other(e.to_string()))?;
+        builder
+            .add(pattern)
+            .map_err(|e| Error::Other(format!("invalid pattern '{}': {}", pattern, e)))?;
+    }
+    let overrides = builder
+        .build()
+        .map_err(|e| Error::Other(e.to_string()))?;
 
-        for entry in entries.flatten() {
-            if entry.is_file() {
-                let rel = entry.strip_prefix(from).unwrap();
-                let dest = to.join(rel);
+    // Walk directory with overrides (only matching files)
+    let walker = WalkBuilder::new(from)
+        .overrides(overrides)
+        .standard_filters(false) // Don't apply .gitignore
+        .build();
 
-                if let Some(parent) = dest.parent() {
-                    std::fs::create_dir_all(parent).ok();
-                }
+    for entry in walker.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            let rel = path.strip_prefix(from).unwrap();
+            let dest = to.join(rel);
 
-                std::fs::copy(&entry, &dest).ok();
+            if let Some(parent) = dest.parent() {
+                std::fs::create_dir_all(parent).ok();
             }
+
+            std::fs::copy(path, &dest).ok();
         }
     }
 

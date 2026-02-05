@@ -112,7 +112,7 @@ Agent 正常退出且有未提交更改时：
 ```toml
 [general]
 merge_strategy = "squash"  # squash | merge | rebase
-copy_files = ["*.secret.*"]  # 复制到新 worktree 的文件
+copy_files = ["*.secret.*"]  # gitignore 风格的文件模式
 
 [hooks]
 post_create = []
@@ -125,7 +125,7 @@ post_merge = []
 ```toml
 [general]
 trunk = "main"  # trunk 分支（省略则自动检测）
-copy_files = [".env", ".env.*"]
+copy_files = [".env", ".env.*"]  # *.md 匹配所有，/*.md 只匹配根目录
 
 [hooks]
 post_create = ["pnpm install"]

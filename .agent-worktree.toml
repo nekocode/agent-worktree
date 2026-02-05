@@ -1,0 +1,8 @@
+[general]
+trunk = "main"
+copy_files = ["/*.md"]
+
+[hooks]
+post_create = ["echo 'Worktree created!'"]
+pre_merge = ["echo 'Preparing to merge...'"]
+post_merge = ["echo 'Merge completed!'"]

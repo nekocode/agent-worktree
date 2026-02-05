@@ -112,7 +112,7 @@ When the agent exits normally with uncommitted changes:
 ```toml
 [general]
 merge_strategy = "squash"  # squash | merge | rebase
-copy_files = ["*.secret.*"]  # Files to copy to new worktrees
+copy_files = ["*.secret.*"]  # Gitignore-style patterns for files to copy
 
 [hooks]
 post_create = []
@@ -125,7 +125,7 @@ post_merge = []
 ```toml
 [general]
 trunk = "main"  # Trunk branch (auto-detected if omitted)
-copy_files = [".env", ".env.*"]
+copy_files = [".env", ".env.*"]  # *.md for all, /*.md for root only
 
 [hooks]
 post_create = ["pnpm install"]

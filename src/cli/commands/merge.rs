@@ -362,8 +362,9 @@ fn cleanup_worktree(branch: &str, config: &Config) -> Result<()> {
         // Remove worktree
         git::remove_worktree(&wt_path, false).ok();
 
-        // Delete branch
-        git::delete_branch(branch, false).ok();
+        // Force delete branch: squash merge rewrites history so -d thinks
+        // the branch is "not fully merged" even though changes are in trunk
+        git::delete_branch(branch, true).ok();
 
         // Remove metadata
         let meta_path = wt_dir.join(format!("{branch}.status.toml"));

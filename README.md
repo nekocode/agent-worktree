@@ -18,6 +18,12 @@ AI coding agents work best with isolated environments:
 npm install -g agent-worktree
 ```
 
+Update to the latest version:
+
+```bash
+wt update
+```
+
 Shell integration is installed automatically. To reinstall manually:
 
 ```bash
@@ -102,12 +108,6 @@ When the agent exits normally:
 | `wt sync -s merge` | Sync with merge strategy |
 | `wt sync --continue` | Continue after resolving conflicts |
 | `wt sync --abort` | Abort sync |
-
-### Maintenance
-
-| Command | Description |
-|---------|-------------|
-| `wt update` | Update to latest version |
 
 ### Configuration
 

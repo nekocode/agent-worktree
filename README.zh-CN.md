@@ -18,6 +18,12 @@ AI 编程 agent 在隔离环境中工作效果最佳：
 npm install -g agent-worktree
 ```
 
+更新到最新版本：
+
+```bash
+wt update
+```
+
 Shell 集成会自动安装。如需手动重新安装：
 
 ```bash
@@ -102,12 +108,6 @@ Agent 正常退出时：
 | `wt sync -s merge` | 使用 merge 策略同步 |
 | `wt sync --continue` | 解决冲突后继续 |
 | `wt sync --abort` | 放弃同步 |
-
-### 维护
-
-| 命令 | 描述 |
-|------|------|
-| `wt update` | 更新到最新版本 |
 
 ### 配置
 

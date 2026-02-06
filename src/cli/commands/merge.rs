@@ -103,7 +103,7 @@ pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result
     if args.r#continue {
         let branch = load_merge_state()?;
         std::env::set_current_dir(&main_repo).map_err(|e| Error::Other(e.to_string()))?;
-        continue_merge()?;
+        continue_merge(branch.as_deref())?;
         clear_merge_state();
 
         // Run post-merge hooks
@@ -305,7 +305,7 @@ fn abort_merge() -> Result<()> {
 }
 
 /// Continue in-progress merge/rebase
-fn continue_merge() -> Result<()> {
+fn continue_merge(branch: Option<&str>) -> Result<()> {
     // Try continuing rebase first (more common to have conflicts during rebase)
     let rebase_continue = std::process::Command::new("git")
         .args(["rebase", "--continue"])
@@ -317,10 +317,25 @@ fn continue_merge() -> Result<()> {
         return Ok(());
     }
 
-    // Try continuing merge (need to commit)
+    // Try continuing merge/squash (need to commit)
     if git::has_uncommitted_changes()? {
+        // Squash merge has no MERGE_HEAD — build our own message
+        let args = if !git::is_merge_in_progress() {
+            if let Some(branch) = branch {
+                let trunk = git::current_branch().unwrap_or_default();
+                let log = git::log_oneline(&trunk, branch).unwrap_or_default();
+                let msg = build_merge_message(branch, &log);
+                vec!["commit".to_string(), "-m".to_string(), msg]
+            } else {
+                vec!["commit".to_string(), "--no-edit".to_string()]
+            }
+        } else {
+            // Regular merge — message already set by git merge -m
+            vec!["commit".to_string(), "--no-edit".to_string()]
+        };
+
         let merge_continue = std::process::Command::new("git")
-            .args(["commit", "--no-edit"])
+            .args(&args)
             .output()
             .map_err(|e| Error::Other(e.to_string()))?;
 

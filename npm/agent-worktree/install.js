@@ -1,12 +1,5 @@
 // ============================================================
-// Postinstall: Verify Platform Package & Install Shell Wrapper
-// ============================================================
-
-const { execFileSync } = require("child_process");
-const { join } = require("path");
-
-// ============================================================
-// Platform Verification
+// Postinstall: Verify Platform Package
 // ============================================================
 
 const PLATFORMS = {
@@ -25,31 +18,12 @@ if (!pkg) {
   process.exit(0);
 }
 
-let binaryPath;
 try {
-  const pkgPath = require.resolve(`${pkg}/package.json`);
-  const exe = process.platform === "win32" ? "wt.exe" : "wt";
-  binaryPath = join(pkgPath, "..", "bin", exe);
+  require.resolve(`${pkg}/package.json`);
 } catch {
   console.warn(`[agent-worktree] Warning: Platform package ${pkg} not installed`);
   console.warn(`[agent-worktree] This may happen if npm failed to install optional dependencies`);
   process.exit(0);
 }
 
-// ============================================================
-// Shell Wrapper Installation
-// ============================================================
-
-try {
-  console.log("[agent-worktree] Installing shell integration...");
-  execFileSync(binaryPath, ["setup"], { stdio: "inherit" });
-  if (process.platform === "win32") {
-    console.log("[agent-worktree] Shell integration installed. Restart PowerShell to apply changes.");
-  } else {
-    console.log("[agent-worktree] Shell integration installed. Restart your shell or run: source ~/.bashrc (or ~/.zshrc)");
-  }
-} catch (err) {
-  // Non-fatal: user can run `wt setup` manually
-  console.warn("[agent-worktree] Warning: Could not install shell integration automatically");
-  console.warn("[agent-worktree] Run 'wt setup' manually to enable shell integration");
-}
+console.log("[agent-worktree] Installed successfully. Run 'wt setup' to enable shell integration.");

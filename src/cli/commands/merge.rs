@@ -148,17 +148,47 @@ pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result
     Ok(())
 }
 
+/// Build commit message for squash merge
+///
+/// - Single commit: use that commit's message directly
+/// - Multiple commits: "Merge branch 'x'" + list all commits
+/// - No commits: "Merge branch 'x'"
+pub fn build_merge_message(branch: &str, log: &str) -> String {
+    let lines: Vec<&str> = log.lines().filter(|l| !l.is_empty()).collect();
+
+    match lines.len() {
+        0 => format!("Merge branch '{branch}'"),
+        1 => {
+            // Single commit → strip hash prefix, use message directly
+            let line = lines[0];
+            line.split_once(' ')
+                .map(|(_, msg)| msg.to_string())
+                .unwrap_or_else(|| format!("Merge branch '{branch}'"))
+        }
+        _ => {
+            let mut msg = format!("Merge branch '{branch}'\n\n");
+            for line in &lines {
+                msg.push_str(&format!("* {line}\n"));
+            }
+            msg.trim_end().to_string()
+        }
+    }
+}
+
 /// Squash merge: combine all commits into one
 fn squash_merge(branch: &str, trunk: &str) -> Result<()> {
+    // Collect commit log before switching branches
+    let log = git::log_oneline(trunk, branch).unwrap_or_default();
+
     // Switch to trunk
     git::checkout(trunk)?;
 
     // Squash merge
-    git::merge(branch, true, false)?;
+    git::merge(branch, true, false, None)?;
 
     // Check if there are staged changes to commit
     if git::has_staged_changes()? {
-        let msg = format!("Merge branch '{}' (squashed)", branch);
+        let msg = build_merge_message(branch, &log);
         git::commit(&msg)?;
         eprintln!("Squash merged {branch} into {trunk}");
     } else {
@@ -170,11 +200,15 @@ fn squash_merge(branch: &str, trunk: &str) -> Result<()> {
 
 /// Regular merge: preserve history
 fn regular_merge(branch: &str, trunk: &str) -> Result<()> {
+    // Collect commit log before switching branches
+    let log = git::log_oneline(trunk, branch).unwrap_or_default();
+
     // Switch to trunk
     git::checkout(trunk)?;
 
     // Merge with no-ff to preserve branch history
-    git::merge(branch, false, true)?;
+    let msg = build_merge_message(branch, &log);
+    git::merge(branch, false, true, Some(&msg))?;
 
     eprintln!("Merged {branch} into {trunk}");
     Ok(())
@@ -187,7 +221,7 @@ fn rebase_merge(branch: &str, trunk: &str) -> Result<()> {
 
     // Then fast-forward trunk
     git::checkout(trunk)?;
-    git::merge(branch, false, false)?;
+    git::merge(branch, false, false, None)?;
 
     eprintln!("Rebased and merged {branch} into {trunk}");
     Ok(())
@@ -272,4 +306,32 @@ fn cleanup_worktree(branch: &str, config: &Config) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_merge_message_with_commits() {
+        let log = "abc1234 Add user authentication\ndef5678 Fix login edge case\n";
+        let msg = build_merge_message("feature-auth", log);
+        assert!(msg.starts_with("Merge branch 'feature-auth'\n"));
+        assert!(msg.contains("abc1234 Add user authentication"));
+        assert!(msg.contains("def5678 Fix login edge case"));
+    }
+
+    #[test]
+    fn test_build_merge_message_single_commit() {
+        let log = "abc1234 Initial implementation\n";
+        let msg = build_merge_message("fix-bug", log);
+        // Single commit → use that commit's message directly
+        assert_eq!(msg, "Initial implementation");
+    }
+
+    #[test]
+    fn test_build_merge_message_empty_log() {
+        let msg = build_merge_message("my-branch", "");
+        assert_eq!(msg, "Merge branch 'my-branch'");
+    }
 }

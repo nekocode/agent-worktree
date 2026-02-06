@@ -73,7 +73,13 @@ wt sync [options]            # 从 trunk 同步更新到当前 worktree
     --abort                  # 放弃同步，恢复到冲突前状态
 ```
 
-### 3. 配置
+### 3. 维护
+
+```bash
+wt update                    # 更新到最新版本
+```
+
+### 4. 配置
 
 ```bash
 wt setup                     # 安装 shell 集成（自动检测 shell）
@@ -131,11 +137,17 @@ wt new fix-bug -s cursor  # 指定分支名
 
 | 状态 | 行为 |
 |------|------|
-| 无改动（uncommitted=❌, commits=❌） | 清理 worktree |
-| 只有 commits（uncommitted=❌, commits=✅） | 自动 merge 并清理 |
-| 有未提交改动（uncommitted=✅） | prompt 选择 |
+| 无改动（uncommitted=❌, commits=❌） | 直接清理 worktree |
+| 只有 commits（uncommitted=❌, commits=✅） | prompt: [m] merge / [q] exit |
+| 有未提交改动（uncommitted=✅） | prompt: [r] reopen / [q] exit |
 
-Prompt 选项（支持快捷键）：
+**有 commits 时** prompt：
+```
+[m] Merge into trunk
+[q] Exit snap mode
+```
+
+**有未提交改动时** prompt：
 ```
 [r] Reopen agent (let agent commit)
 [q] Exit snap mode
@@ -222,8 +234,10 @@ agent-worktree/
 │   │       ├── merge.rs # wt merge [-s] [--into] [-k]
 │   │       ├── sync.rs  # wt sync [--strategy]
 │   │       ├── move.rs  # wt mv <old> <new>
-│   │       ├── setup.rs # wt setup [--shell]
-│   │       └── init.rs  # wt init [--trunk]
+│   │       ├── setup.rs  # wt setup [--shell]
+│   │       ├── init.rs   # wt init [--trunk]
+│   │       ├── update.rs # wt update
+│   │       └── snap_continue.rs  # snap 模式 agent 退出后的处理逻辑
 │   ├── config/
 │   │   └── mod.rs       # GlobalConfig + ProjectConfig + Config (merged)
 │   ├── git/
@@ -235,7 +249,9 @@ agent-worktree/
 │   ├── shell/
 │   │   └── mod.rs       # Shell enum + wrapper 脚本生成 + install
 │   ├── prompt/
-│   │   └── mod.rs       # confirm, snap_exit_prompt
+│   │   └── mod.rs       # confirm, snap_exit_prompt, snap_merge_prompt
+│   ├── update/
+│   │   └── mod.rs       # 版本检查与自动更新 (npm registry)
 │   └── util/
 │       ├── mod.rs
 │       └── branch_name.rs  # generate_branch_name, generate_unique_branch_name

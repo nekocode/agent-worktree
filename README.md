@@ -18,7 +18,7 @@ AI coding agents work best with isolated environments:
 npm install -g agent-worktree
 ```
 
-Shell integration is installed automatically. To reinstall manually:
+Then install shell integration:
 
 ```bash
 wt setup
@@ -57,11 +57,19 @@ wt new -s "aider --model sonnet"  # Command with arguments
 
 Flow: Create worktree → Enter → Run agent → [Develop] → Agent exits → Check changes → Merge → Cleanup
 
-When the agent exits normally with uncommitted changes:
-```
-[r] Reopen agent (let agent commit)
-[q] Exit snap mode (commit manually)
-```
+When the agent exits normally:
+
+- **No changes**: Worktree cleaned up automatically
+- **Only commits** (nothing uncommitted):
+  ```
+  [m] Merge into trunk
+  [q] Exit snap mode
+  ```
+- **Uncommitted changes**:
+  ```
+  [r] Reopen agent (let agent commit)
+  [q] Exit snap mode (commit manually)
+  ```
 
 ## Commands
 
@@ -95,6 +103,12 @@ When the agent exits normally with uncommitted changes:
 | `wt sync --continue` | Continue after resolving conflicts |
 | `wt sync --abort` | Abort sync |
 
+### Maintenance
+
+| Command | Description |
+|---------|-------------|
+| `wt update` | Update to latest version |
+
 ### Configuration
 
 | Command | Description |
@@ -111,11 +125,12 @@ When the agent exits normally with uncommitted changes:
 ```toml
 [general]
 merge_strategy = "squash"  # squash | merge | rebase
-copy_files = ["*.secret.*"]  # Gitignore-style patterns for files to copy
+trunk = "main"  # Trunk branch (auto-detected if omitted)
+copy_files = [".env", ".env.*"]  # Gitignore-style patterns for files to copy
 
 [hooks]
-post_create = []
-pre_merge = []
+post_create = ["pnpm install"]
+pre_merge = ["pnpm test", "pnpm lint"]
 post_merge = []
 ```
 
@@ -123,12 +138,8 @@ post_merge = []
 
 ```toml
 [general]
-trunk = "main"  # Trunk branch (auto-detected if omitted)
-copy_files = [".env", ".env.*"]  # *.md for all, /*.md for root only
-
-[hooks]
-post_create = ["pnpm install"]
-pre_merge = ["pnpm test", "pnpm lint"]
+copy_files = ["*.secret.*"]
+# ...
 ```
 
 ## Storage Layout

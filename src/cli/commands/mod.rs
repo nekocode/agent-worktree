@@ -14,6 +14,7 @@ pub mod rm;
 pub mod setup;
 pub mod snap_continue;
 pub mod sync;
+pub mod update;
 
 // Re-export argument types
 pub use cd::CdArgs;

@@ -96,6 +96,9 @@ enum Command {
     /// Create .agent-worktree.toml config file
     Init(commands::InitArgs),
 
+    /// Update to the latest version
+    Update,
+
     /// Continue snap mode after agent exits (internal use)
     #[command(hide = true)]
     SnapContinue,
@@ -118,6 +121,7 @@ impl Cli {
             Command::Mv(args) => commands::r#move::run(args, &config, path_file),
             Command::Setup(args) => commands::setup::run(args),
             Command::Init(args) => commands::init::run(args),
+            Command::Update => commands::update::run(),
             Command::SnapContinue => commands::snap_continue::run(&config, path_file),
         }
     }
@@ -268,6 +272,12 @@ mod tests {
     #[test]
     fn test_cli_parse_new_with_snap_and_branch() {
         let cli = Cli::try_parse_from(["wt", "new", "my-branch", "-s", "agent"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_update() {
+        let cli = Cli::try_parse_from(["wt", "update"]);
         assert!(cli.is_ok());
     }
 

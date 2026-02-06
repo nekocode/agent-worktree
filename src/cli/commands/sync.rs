@@ -89,7 +89,7 @@ pub fn run(args: SyncArgs, config: &Config) -> Result<()> {
             eprintln!("Rebased onto {trunk}");
         }
         SyncStrategy::Merge => {
-            git::merge(&trunk, false, false)?;
+            git::merge(&trunk, false, false, None)?;
             eprintln!("Merged {trunk} into {current}");
         }
     }

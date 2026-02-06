@@ -18,7 +18,7 @@ AI 编程 agent 在隔离环境中工作效果最佳：
 npm install -g agent-worktree
 ```
 
-Shell 集成会自动安装。手动重新安装：
+然后安装 shell 集成：
 
 ```bash
 wt setup
@@ -57,11 +57,19 @@ wt new -s "aider --model sonnet"  # 带参数的命令
 
 流程：创建 worktree → 进入 → 运行 agent → [开发] → agent 退出 → 检查更改 → 合并 → 清理
 
-Agent 正常退出且有未提交更改时：
-```
-[r] 重新打开 agent（让 agent 提交）
-[q] 退出 snap mode（手动提交）
-```
+Agent 正常退出时：
+
+- **无改动**：自动清理 worktree
+- **只有 commits**（无未提交更改）：
+  ```
+  [m] 合并到 trunk
+  [q] 退出 snap mode
+  ```
+- **有未提交更改**：
+  ```
+  [r] 重新打开 agent（让 agent 提交）
+  [q] 退出 snap mode（手动提交）
+  ```
 
 ## 命令
 
@@ -95,6 +103,12 @@ Agent 正常退出且有未提交更改时：
 | `wt sync --continue` | 解决冲突后继续 |
 | `wt sync --abort` | 放弃同步 |
 
+### 维护
+
+| 命令 | 描述 |
+|------|------|
+| `wt update` | 更新到最新版本 |
+
 ### 配置
 
 | 命令 | 描述 |
@@ -111,11 +125,12 @@ Agent 正常退出且有未提交更改时：
 ```toml
 [general]
 merge_strategy = "squash"  # squash | merge | rebase
-copy_files = ["*.secret.*"]  # gitignore 风格的文件模式
+trunk = "main"  # trunk 分支（省略则自动检测）
+copy_files = [".env", ".env.*"]  # gitignore 风格的文件模式
 
 [hooks]
-post_create = []
-pre_merge = []
+post_create = ["pnpm install"]
+pre_merge = ["pnpm test", "pnpm lint"]
 post_merge = []
 ```
 
@@ -123,12 +138,8 @@ post_merge = []
 
 ```toml
 [general]
-trunk = "main"  # trunk 分支（省略则自动检测）
-copy_files = [".env", ".env.*"]  # *.md 匹配所有，/*.md 只匹配根目录
-
-[hooks]
-post_create = ["pnpm install"]
-pre_merge = ["pnpm test", "pnpm lint"]
+copy_files = ["*.secret.*"]
+# ...
 ```
 
 ## 存储结构

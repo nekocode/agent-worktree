@@ -1,6 +1,6 @@
 {
   "name": "@nekocode/agent-worktree-darwin-x64",
-  "version": "0.5.1",
+  "version": "0.5.3",
   "description": "agent-worktree binary for macOS x64",
   "license": "MIT",
   "repository": {

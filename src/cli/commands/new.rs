@@ -219,19 +219,22 @@ fn do_merge(wt_path: &Path, branch: &str, trunk: &str, config: &Config) -> Resul
     std::env::set_current_dir(&repo_root).map_err(|e| Error::Other(e.to_string()))?;
     git::checkout(trunk)?;
 
+    let log = git::log_oneline(trunk, branch).unwrap_or_default();
+    let msg = super::merge::build_merge_message(branch, &log);
+
     match config.merge_strategy {
         crate::config::MergeStrategy::Squash => {
-            git::merge(branch, true, false)?;
-            git::commit(&format!("Merge branch '{}'", branch))?;
+            git::merge(branch, true, false, None)?;
+            git::commit(&msg)?;
         }
         crate::config::MergeStrategy::Merge => {
-            git::merge(branch, false, true)?;
+            git::merge(branch, false, true, Some(&msg))?;
         }
         crate::config::MergeStrategy::Rebase => {
             git::checkout(branch)?;
             git::rebase(trunk)?;
             git::checkout(trunk)?;
-            git::merge(branch, false, true)?;
+            git::merge(branch, false, false, None)?;
         }
     }
 

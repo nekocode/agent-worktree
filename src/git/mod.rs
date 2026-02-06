@@ -407,15 +407,19 @@ pub fn has_staged_changes() -> Result<bool> {
 }
 
 /// Run git merge
-pub fn merge(branch: &str, squash: bool, no_ff: bool) -> Result<()> {
-    let mut args = vec!["merge"];
+pub fn merge(branch: &str, squash: bool, no_ff: bool, message: Option<&str>) -> Result<()> {
+    let mut args = vec!["merge".to_string()];
     if squash {
-        args.push("--squash");
+        args.push("--squash".to_string());
     }
     if no_ff {
-        args.push("--no-ff");
+        args.push("--no-ff".to_string());
     }
-    args.push(branch);
+    if let Some(msg) = message {
+        args.push("-m".to_string());
+        args.push(msg.to_string());
+    }
+    args.push(branch.to_string());
 
     let output = Command::new("git").args(&args).output()?;
 
@@ -1150,7 +1154,7 @@ bare
 
         with_cwd(dir.path(), || {
             // Merge should work (fast-forward or no-op)
-            let result = merge("already-merged", false, false);
+            let result = merge("already-merged", false, false, None);
             // May succeed or say "already up to date"
             let _ = result;
         });

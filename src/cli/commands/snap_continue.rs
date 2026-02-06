@@ -15,7 +15,7 @@ use crate::config::{Config, MergeStrategy};
 use crate::git;
 use crate::meta::WorktreeMeta;
 use crate::process;
-use crate::prompt::{self, SnapExitChoice};
+use crate::prompt::{self, SnapExitChoice, SnapMergeChoice};
 
 // ===========================================================================
 // Public Types
@@ -99,12 +99,15 @@ pub fn determine_action(ctx: &SnapContext) -> Result<SnapAction> {
         return Ok(SnapAction::CleanupNoChanges);
     }
 
-    // Only committed changes → auto merge
+    // Only committed changes → prompt merge or exit
     if !ctx.has_uncommitted && ctx.has_commits_ahead {
-        return Ok(SnapAction::MergeAndCleanup);
+        return match prompt::snap_merge_prompt() {
+            Ok(SnapMergeChoice::Merge) => Ok(SnapAction::MergeAndCleanup),
+            Ok(SnapMergeChoice::Exit) | Err(_) => Ok(SnapAction::ExitPreserve),
+        };
     }
 
-    // Has uncommitted changes → prompt user
+    // Has uncommitted changes → prompt reopen or exit
     match prompt::snap_exit_prompt() {
         Ok(SnapExitChoice::Reopen) => Ok(SnapAction::Reopen),
         Ok(SnapExitChoice::Exit) | Err(_) => Ok(SnapAction::ExitPreserve),
@@ -116,20 +119,24 @@ pub fn determine_action(ctx: &SnapContext) -> Result<SnapAction> {
 pub fn determine_action_with_choice(
     has_uncommitted: bool,
     has_commits_ahead: bool,
-    choice: Option<SnapExitChoice>,
+    exit_choice: Option<SnapExitChoice>,
+    merge_choice: Option<SnapMergeChoice>,
 ) -> SnapAction {
     // No changes at all → cleanup
     if !has_uncommitted && !has_commits_ahead {
         return SnapAction::CleanupNoChanges;
     }
 
-    // Only committed changes → auto merge
+    // Only committed changes → use merge choice
     if !has_uncommitted && has_commits_ahead {
-        return SnapAction::MergeAndCleanup;
+        return match merge_choice {
+            Some(SnapMergeChoice::Merge) => SnapAction::MergeAndCleanup,
+            Some(SnapMergeChoice::Exit) | None => SnapAction::ExitPreserve,
+        };
     }
 
-    // Has uncommitted changes → use provided choice
-    match choice {
+    // Has uncommitted changes → use exit choice
+    match exit_choice {
         Some(SnapExitChoice::Reopen) => SnapAction::Reopen,
         Some(SnapExitChoice::Exit) | None => SnapAction::ExitPreserve,
     }
@@ -137,19 +144,22 @@ pub fn determine_action_with_choice(
 
 /// Perform merge operation
 pub fn perform_merge(branch: &str, trunk: &str, strategy: MergeStrategy) -> Result<()> {
+    let log = git::log_oneline(trunk, branch).unwrap_or_default();
+    let msg = super::merge::build_merge_message(branch, &log);
+
     match strategy {
         MergeStrategy::Squash => {
-            git::merge(branch, true, false)?;
-            git::commit(&format!("Merge branch '{}'", branch))?;
+            git::merge(branch, true, false, None)?;
+            git::commit(&msg)?;
         }
         MergeStrategy::Merge => {
-            git::merge(branch, false, true)?;
+            git::merge(branch, false, true, Some(&msg))?;
         }
         MergeStrategy::Rebase => {
             git::checkout(branch)?;
             git::rebase(trunk)?;
             git::checkout(trunk)?;
-            git::merge(branch, false, true)?;
+            git::merge(branch, false, false, None)?;
         }
     }
     Ok(())
@@ -279,35 +289,59 @@ mod tests {
     #[test]
     fn test_determine_no_changes() {
         // No uncommitted, no commits ahead → cleanup
-        let action = determine_action_with_choice(false, false, Some(SnapExitChoice::Exit));
+        let action = determine_action_with_choice(false, false, Some(SnapExitChoice::Exit), None);
         assert_eq!(action, SnapAction::CleanupNoChanges);
     }
 
     #[test]
-    fn test_determine_only_commits_ahead_auto_merges() {
-        // No uncommitted but has commits ahead → auto merge (no prompt needed)
-        let action = determine_action_with_choice(false, true, None);
+    fn test_determine_only_commits_ahead_merge() {
+        // No uncommitted but has commits ahead, user chooses merge
+        let action = determine_action_with_choice(
+            false,
+            true,
+            None,
+            Some(SnapMergeChoice::Merge),
+        );
         assert_eq!(action, SnapAction::MergeAndCleanup);
+    }
+
+    #[test]
+    fn test_determine_only_commits_ahead_exit() {
+        // No uncommitted but has commits ahead, user chooses exit
+        let action = determine_action_with_choice(
+            false,
+            true,
+            None,
+            Some(SnapMergeChoice::Exit),
+        );
+        assert_eq!(action, SnapAction::ExitPreserve);
+    }
+
+    #[test]
+    fn test_determine_only_commits_ahead_no_choice_defaults_to_exit() {
+        // No uncommitted but has commits ahead, no choice → exit
+        let action = determine_action_with_choice(false, true, None, None);
+        assert_eq!(action, SnapAction::ExitPreserve);
     }
 
     #[test]
     fn test_determine_uncommitted_reopen() {
         // Has uncommitted, user chooses reopen → reopen
-        let action = determine_action_with_choice(true, false, Some(SnapExitChoice::Reopen));
+        let action = determine_action_with_choice(true, false, Some(SnapExitChoice::Reopen), None);
         assert_eq!(action, SnapAction::Reopen);
     }
 
     #[test]
     fn test_determine_uncommitted_exit() {
         // Has uncommitted, user chooses exit → preserve worktree
-        let action = determine_action_with_choice(true, true, Some(SnapExitChoice::Exit));
+        let action = determine_action_with_choice(true, true, Some(SnapExitChoice::Exit), None);
         assert_eq!(action, SnapAction::ExitPreserve);
     }
 
     #[test]
     fn test_determine_uncommitted_none_defaults_to_exit() {
         // Has uncommitted, no choice → preserve worktree
-        let action = determine_action_with_choice(true, false, None);
+        let action = determine_action_with_choice(true, false, None, None);
         assert_eq!(action, SnapAction::ExitPreserve);
     }
 

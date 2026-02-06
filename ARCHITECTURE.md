@@ -165,6 +165,46 @@ wt merge          # merge 并清理
 
 ---
 
+## Merge 冲突处理
+
+### 状态持久化
+
+merge 遇到冲突时，通过 `.git/WT_MERGE_BRANCH` 文件记录正在合并的分支名。
+模仿 git 自身的 `MERGE_HEAD` 模式 — 简单文本文件，冲突时写入，完成后删除。
+
+```
+冲突发生 → 写入 WT_MERGE_BRANCH → 用户解决冲突 → --continue/--abort → 清除 WT_MERGE_BRANCH
+```
+
+### 冲突工作流
+
+所有 merge 操作在 main repo 目录执行（非 worktree 目录）：
+
+1. `wt merge` 检测到冲突 → 保存状态，提示用户解决
+2. 用户在 main repo 解决冲突 → `git add <files>`
+3. `wt merge --continue` → 提交、运行 post-merge hooks、清理 worktree
+4. 或 `wt merge --abort` → 还原状态、清理 WT_MERGE_BRANCH
+
+### 安全检查
+
+执行 merge 前检查 main repo 是否有未完成的 merge/rebase/uncommitted changes，防止并发 merge 冲突。
+
+### 统一 merge 入口
+
+`merge::execute_merge()` 是唯一的 merge 执行函数，`snap_continue` 和 `wt merge` 共用，消除逻辑重复。
+
+---
+
+## Git 错误处理
+
+`git/mod.rs` 中的 `extract_error()` 统一从命令输出提取错误信息：
+- 优先使用 stderr（git 的常规错误输出）
+- stderr 为空时 fallback 到 stdout（merge 冲突信息走 stdout）
+
+适用于 `merge`、`commit`、`merge_continue` 等冲突相关命令。
+
+---
+
 ## 配置文件
 
 ### 全局配置 `~/.agent-worktree/config.toml`
@@ -231,7 +271,7 @@ agent-worktree/
 │   │       ├── main.rs  # wt main
 │   │       ├── rm.rs    # wt rm <branch> [--force]
 │   │       ├── clean.rs # wt clean
-│   │       ├── merge.rs # wt merge [-s] [--into] [-k]
+│   │       ├── merge.rs # wt merge [-s] [--into] [-k] [--continue] [--abort]
 │   │       ├── sync.rs  # wt sync [--strategy]
 │   │       ├── move.rs  # wt mv <old> <new>
 │   │       ├── setup.rs  # wt setup [--shell]
@@ -241,7 +281,7 @@ agent-worktree/
 │   ├── config/
 │   │   └── mod.rs       # GlobalConfig + ProjectConfig + Config (merged)
 │   ├── git/
-│   │   └── mod.rs       # 调用 git CLI：worktree/branch/merge/rebase
+│   │   └── mod.rs       # 调用 git CLI：worktree/branch/merge/rebase/reset
 │   ├── meta/
 │   │   └── mod.rs       # WorktreeMeta (.status.toml 读写)
 │   ├── process/

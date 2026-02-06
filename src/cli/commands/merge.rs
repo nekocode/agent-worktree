@@ -2,7 +2,7 @@
 // wt merge - Merge current worktree to trunk
 // ===========================================================================
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use clap::{Args, ValueEnum};
 
@@ -10,6 +10,37 @@ use crate::cli::{write_path_file, Error, Result};
 use crate::config::{Config, MergeStrategy};
 use crate::git;
 use crate::process;
+
+// ---------------------------------------------------------------------------
+// Merge state marker: remembers which branch is being merged across conflict
+// ---------------------------------------------------------------------------
+
+const MERGE_BRANCH_FILE: &str = "WT_MERGE_BRANCH";
+
+fn merge_state_path() -> Result<PathBuf> {
+    let root = git::repo_root()?;
+    Ok(root.join(".git").join(MERGE_BRANCH_FILE))
+}
+
+fn save_merge_state(branch: &str) -> Result<()> {
+    let path = merge_state_path()?;
+    std::fs::write(&path, branch).map_err(|e| Error::Other(e.to_string()))
+}
+
+fn load_merge_state() -> Result<Option<String>> {
+    let path = merge_state_path()?;
+    match std::fs::read_to_string(&path) {
+        Ok(s) => Ok(Some(s.trim().to_string())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(Error::Other(e.to_string())),
+    }
+}
+
+fn clear_merge_state() {
+    if let Ok(path) = merge_state_path() {
+        std::fs::remove_file(path).ok();
+    }
+}
 
 #[derive(Args)]
 pub struct MergeArgs {
@@ -64,14 +95,33 @@ pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result
         eprintln!("Aborting merge...");
         std::env::set_current_dir(&main_repo).map_err(|e| Error::Other(e.to_string()))?;
         abort_merge()?;
+        clear_merge_state();
         return Ok(());
     }
 
-    // Handle continue
+    // Handle continue: finish merge + cleanup worktree
     if args.r#continue {
-        eprintln!("Continuing merge...");
+        let branch = load_merge_state()?;
         std::env::set_current_dir(&main_repo).map_err(|e| Error::Other(e.to_string()))?;
         continue_merge()?;
+        clear_merge_state();
+
+        // Run post-merge hooks
+        if !config.hooks.post_merge.is_empty() {
+            eprintln!("Running post-merge hooks...");
+            process::run_hooks(&config.hooks.post_merge, &main_repo)
+                .map_err(|e| Error::Other(e.to_string()))?;
+        }
+
+        // Cleanup worktree
+        if let Some(branch) = branch {
+            cleanup_worktree(&branch, config)?;
+        }
+
+        eprintln!("Merge complete.");
+        if path_file.is_some() {
+            write_path_file(path_file, &main_repo)?;
+        }
         return Ok(());
     }
 
@@ -115,15 +165,40 @@ pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result
     let commit_count = git::commit_count(&trunk, &current).unwrap_or(0);
     eprintln!("Merging {current} into {trunk} ({commit_count} commits, {strategy:?})");
 
-    // Switch to main repo for merge operations
-    // (can't checkout trunk in worktree if main repo has it checked out)
+    // Switch to main repo and checkout trunk
     std::env::set_current_dir(&main_repo).map_err(|e| Error::Other(e.to_string()))?;
 
-    // Execute merge based on strategy
-    match strategy {
-        MergeStrategy::Squash => squash_merge(&current, &trunk)?,
-        MergeStrategy::Merge => regular_merge(&current, &trunk)?,
-        MergeStrategy::Rebase => rebase_merge(&current, &trunk)?,
+    // Check for dirty state from a previous failed merge
+    if git::has_uncommitted_changes()? || git::is_merge_in_progress() || git::is_rebase_in_progress() {
+        return Err(Error::Other(
+            "Main repo has uncommitted changes or unresolved conflicts.".into(),
+        ));
+    }
+
+    git::checkout(&trunk)?;
+
+    // Execute merge
+    match execute_merge(&current, &trunk, strategy) {
+        Ok(false) => {
+            eprintln!("Nothing to merge: {current} is already up to date with {trunk}");
+        }
+        Err(e) => {
+            save_merge_state(&current)?;
+            eprintln!("Merge conflict:\n{e}");
+            eprintln!();
+            eprintln!("Resolve conflicts, then:");
+            eprintln!("  git add <files>");
+            eprintln!("  wt merge --continue");
+            eprintln!();
+            eprintln!("Or abort:  wt merge --abort");
+
+            // Let shell cd to main repo so user can resolve conflicts there
+            if path_file.is_some() && inside_worktree {
+                write_path_file(path_file, &main_repo)?;
+            }
+            return Ok(());
+        }
+        Ok(true) => {}
     }
 
     // Run post-merge hooks (in main repo)
@@ -175,79 +250,54 @@ pub fn build_merge_message(branch: &str, log: &str) -> String {
     }
 }
 
-/// Squash merge: combine all commits into one
-fn squash_merge(branch: &str, trunk: &str) -> Result<()> {
-    // Collect commit log before switching branches
+/// Execute merge. Caller must already be on trunk.
+///
+/// Returns true if changes were merged, false if already up to date.
+pub fn execute_merge(branch: &str, trunk: &str, strategy: MergeStrategy) -> Result<bool> {
     let log = git::log_oneline(trunk, branch).unwrap_or_default();
-
-    // Switch to trunk
-    git::checkout(trunk)?;
-
-    // Squash merge
-    git::merge(branch, true, false, None)?;
-
-    // Check if there are staged changes to commit
-    if git::has_staged_changes()? {
-        let msg = build_merge_message(branch, &log);
-        git::commit(&msg)?;
-        eprintln!("Squash merged {branch} into {trunk}");
-    } else {
-        eprintln!("Nothing to merge: {branch} is already up to date with {trunk}");
-    }
-
-    Ok(())
-}
-
-/// Regular merge: preserve history
-fn regular_merge(branch: &str, trunk: &str) -> Result<()> {
-    // Collect commit log before switching branches
-    let log = git::log_oneline(trunk, branch).unwrap_or_default();
-
-    // Switch to trunk
-    git::checkout(trunk)?;
-
-    // Merge with no-ff to preserve branch history
     let msg = build_merge_message(branch, &log);
-    git::merge(branch, false, true, Some(&msg))?;
 
-    eprintln!("Merged {branch} into {trunk}");
-    Ok(())
-}
-
-/// Rebase merge: linear history
-fn rebase_merge(branch: &str, trunk: &str) -> Result<()> {
-    // First rebase branch onto trunk (already on feature branch)
-    git::rebase(trunk)?;
-
-    // Then fast-forward trunk
-    git::checkout(trunk)?;
-    git::merge(branch, false, false, None)?;
-
-    eprintln!("Rebased and merged {branch} into {trunk}");
-    Ok(())
+    match strategy {
+        MergeStrategy::Squash => {
+            git::merge(branch, true, false, None)?;
+            if git::has_staged_changes()? {
+                git::commit(&msg)?;
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        }
+        MergeStrategy::Merge => {
+            git::merge(branch, false, true, Some(&msg))?;
+            Ok(true)
+        }
+        MergeStrategy::Rebase => {
+            git::checkout(branch)?;
+            git::rebase(trunk)?;
+            git::checkout(trunk)?;
+            git::merge(branch, false, false, None)?;
+            Ok(true)
+        }
+    }
 }
 
 /// Abort in-progress merge/rebase
 fn abort_merge() -> Result<()> {
-    // Try aborting merge first
-    let merge_abort = std::process::Command::new("git")
-        .args(["merge", "--abort"])
-        .output()
-        .map_err(|e| Error::Other(e.to_string()))?;
-
-    if merge_abort.status.success() {
+    // Try merge --abort (works for regular merge with MERGE_HEAD)
+    if git::merge_abort().is_ok() {
         eprintln!("Merge aborted.");
         return Ok(());
     }
 
-    // Try aborting rebase
-    let rebase_abort = std::process::Command::new("git")
-        .args(["rebase", "--abort"])
-        .output()
-        .map_err(|e| Error::Other(e.to_string()))?;
-
-    if rebase_abort.status.success() {
+    // Try rebase --abort
+    if git::rebase_abort().is_ok() {
         eprintln!("Rebase aborted.");
+        return Ok(());
+    }
+
+    // Fallback: reset --merge handles squash conflicts (no MERGE_HEAD)
+    if git::reset_merge().is_ok() {
+        eprintln!("Merge state reset.");
         return Ok(());
     }
 

@@ -18,7 +18,7 @@ AI 编程 agent 在隔离环境中工作效果最佳：
 npm install -g agent-worktree
 ```
 
-然后安装 shell 集成：
+Shell 集成会自动安装。如需手动重新安装：
 
 ```bash
 wt setup

@@ -1419,6 +1419,73 @@ fn test_merge_with_changes() {
 }
 
 #[test]
+fn test_merge_conflict_shows_error() {
+    let (dir, repo, home) = setup_worktree_test_env();
+
+    // Create worktree
+    let path_file = create_path_file(dir.path());
+    let output = Command::new(wt_binary())
+        .args(["new", "merge-conflict", "--path-file", path_file.to_str().unwrap()])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new failed");
+
+    if !output.status.success() {
+        return;
+    }
+
+    let wt_path = PathBuf::from(read_path_file(&path_file).trim());
+
+    // Create conflicting change in worktree
+    std::fs::write(wt_path.join("README.md"), "worktree change\n").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(&wt_path)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "Worktree change to README"])
+        .current_dir(&wt_path)
+        .output()
+        .unwrap();
+
+    // Create conflicting change on main
+    std::fs::write(repo.join("README.md"), "main change\n").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "Main change to README"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+
+    // Try merge — should fail with conflict info
+    let output = Command::new(wt_binary())
+        .args(["merge", "--keep"])
+        .current_dir(&wt_path)
+        .env("HOME", &home)
+        .output()
+        .expect("wt merge failed");
+
+    // Conflict is a normal workflow, exit 0 with guidance
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Must show conflict info and recovery instructions
+    assert!(
+        stderr.contains("CONFLICT") || stderr.contains("conflict"),
+        "Expected conflict info in stderr, got: {stderr}"
+    );
+    assert!(
+        stderr.contains("--continue") && stderr.contains("--abort"),
+        "Expected recovery instructions in stderr, got: {stderr}"
+    );
+}
+
+#[test]
 fn test_sync_on_feature_with_updates() {
     let (dir, repo, home) = setup_worktree_test_env();
 

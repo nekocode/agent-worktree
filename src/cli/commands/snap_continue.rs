@@ -11,7 +11,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::cli::{write_path_file, Error, Result};
-use crate::config::{Config, MergeStrategy};
+use crate::config::Config;
 use crate::git;
 use crate::meta::WorktreeMeta;
 use crate::process;
@@ -142,29 +142,6 @@ pub fn determine_action_with_choice(
     }
 }
 
-/// Perform merge operation
-pub fn perform_merge(branch: &str, trunk: &str, strategy: MergeStrategy) -> Result<()> {
-    let log = git::log_oneline(trunk, branch).unwrap_or_default();
-    let msg = super::merge::build_merge_message(branch, &log);
-
-    match strategy {
-        MergeStrategy::Squash => {
-            git::merge(branch, true, false, None)?;
-            git::commit(&msg)?;
-        }
-        MergeStrategy::Merge => {
-            git::merge(branch, false, true, Some(&msg))?;
-        }
-        MergeStrategy::Rebase => {
-            git::checkout(branch)?;
-            git::rebase(trunk)?;
-            git::checkout(trunk)?;
-            git::merge(branch, false, false, None)?;
-        }
-    }
-    Ok(())
-}
-
 /// Remove worktree, branch, and metadata
 pub fn cleanup_worktree(wt_path: &Path, branch: &str, config: &Config) -> Result<()> {
     git::remove_worktree(wt_path, true)?;
@@ -215,7 +192,18 @@ fn execute_action(
                 .map_err(|e| Error::Other(e.to_string()))?;
             git::checkout(&ctx.trunk)?;
 
-            perform_merge(&ctx.branch, &ctx.trunk, config.merge_strategy)?;
+            if let Err(e) = super::merge::execute_merge(&ctx.branch, &ctx.trunk, config.merge_strategy) {
+                eprintln!("Merge conflict:\n{e}");
+                eprintln!();
+                // Clean up main repo: reset --merge covers both regular and squash conflicts
+                git::reset_merge().ok();
+                git::rebase_abort().ok();
+                git::checkout(&ctx.branch).ok();
+                std::env::set_current_dir(&ctx.cwd).ok();
+                eprintln!("Worktree preserved. To merge manually:");
+                eprintln!("  wt merge");
+                std::process::exit(3);
+            }
 
             eprintln!("Merged {} into {}", ctx.branch, ctx.trunk);
 

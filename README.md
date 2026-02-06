@@ -18,7 +18,7 @@ AI coding agents work best with isolated environments:
 npm install -g agent-worktree
 ```
 
-Then install shell integration:
+Shell integration is installed automatically. To reinstall manually:
 
 ```bash
 wt setup

@@ -1,6 +1,9 @@
 // ============================================================
-// Postinstall: Verify Platform Package
+// Postinstall: Verify Platform Package & Setup Shell Integration
 // ============================================================
+
+const { execFileSync } = require("child_process");
+const { join } = require("path");
 
 const PLATFORMS = {
   "darwin-arm64": "@nekocode/agent-worktree-darwin-arm64",
@@ -18,12 +21,19 @@ if (!pkg) {
   process.exit(0);
 }
 
+let pkgDir;
 try {
-  require.resolve(`${pkg}/package.json`);
+  pkgDir = require.resolve(`${pkg}/package.json`);
 } catch {
   console.warn(`[agent-worktree] Warning: Platform package ${pkg} not installed`);
   console.warn(`[agent-worktree] This may happen if npm failed to install optional dependencies`);
   process.exit(0);
 }
 
-console.log("[agent-worktree] Installed successfully. Run 'wt setup' to enable shell integration.");
+// Run 'wt setup' to install shell integration
+const binaryPath = join(pkgDir, "..", "bin", "wt");
+try {
+  execFileSync(binaryPath, ["setup"], { stdio: "inherit" });
+} catch {
+  console.warn("[agent-worktree] Auto-setup failed. Run 'wt setup' manually.");
+}

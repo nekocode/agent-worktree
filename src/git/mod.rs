@@ -28,6 +28,19 @@ pub enum Error {
     Io(#[from] std::io::Error),
 }
 
+/// Extract error message from git command output.
+///
+/// Some git commands (merge, commit) put error info in stdout, not stderr.
+/// This function checks stderr first, falls back to stdout.
+fn extract_error(output: &std::process::Output) -> String {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.trim().is_empty() {
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    } else {
+        clean_git_error(&stderr)
+    }
+}
+
 /// Clean git stderr to user-friendly message
 fn clean_git_error(stderr: &str) -> String {
     let msg = stderr.trim();
@@ -424,8 +437,7 @@ pub fn merge(branch: &str, squash: bool, no_ff: bool, message: Option<&str>) -> 
     let output = Command::new("git").args(&args).output()?;
 
     if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(clean_git_error(&err)));
+        return Err(Error::Command(extract_error(&output)));
     }
 
     Ok(())
@@ -476,8 +488,7 @@ pub fn commit(message: &str) -> Result<()> {
         .output()?;
 
     if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(clean_git_error(&err)));
+        return Err(Error::Command(extract_error(&output)));
     }
 
     Ok(())
@@ -565,13 +576,27 @@ pub fn merge_abort() -> Result<()> {
     Ok(())
 }
 
+/// Reset index to HEAD, clearing any merge/squash conflict state.
+///
+/// Unlike `merge --abort`, this also works for `--squash` conflicts
+/// which don't create MERGE_HEAD.
+pub fn reset_merge() -> Result<()> {
+    let output = Command::new("git").args(["reset", "--merge"]).output()?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::Command(clean_git_error(&err)));
+    }
+
+    Ok(())
+}
+
 /// Continue an in-progress merge (after conflict resolution)
 pub fn merge_continue() -> Result<()> {
     let output = Command::new("git").args(["commit", "--no-edit"]).output()?;
 
     if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(clean_git_error(&err)));
+        return Err(Error::Command(extract_error(&output)));
     }
 
     Ok(())
@@ -785,6 +810,42 @@ bare
     fn test_clean_git_error_no_prefix() {
         let msg = clean_git_error("some plain message");
         assert_eq!(msg, "some plain message");
+    }
+
+    // =========================================================================
+    // extract_error tests
+    // =========================================================================
+    #[test]
+    fn test_extract_error_prefers_stderr() {
+        let output = std::process::Output {
+            status: std::process::ExitStatus::default(),
+            stdout: b"stdout info".to_vec(),
+            stderr: b"fatal: something broke".to_vec(),
+        };
+        let err = extract_error(&output);
+        assert_eq!(err, "something broke");
+    }
+
+    #[test]
+    fn test_extract_error_falls_back_to_stdout() {
+        let output = std::process::Output {
+            status: std::process::ExitStatus::default(),
+            stdout: b"CONFLICT (content): Merge conflict in file.txt\n".to_vec(),
+            stderr: b"".to_vec(),
+        };
+        let err = extract_error(&output);
+        assert!(err.contains("CONFLICT"));
+    }
+
+    #[test]
+    fn test_extract_error_whitespace_only_stderr() {
+        let output = std::process::Output {
+            status: std::process::ExitStatus::default(),
+            stdout: b"nothing to commit, working tree clean".to_vec(),
+            stderr: b"  \n  ".to_vec(),
+        };
+        let err = extract_error(&output);
+        assert!(err.contains("nothing to commit"));
     }
 
     // =========================================================================
@@ -1118,6 +1179,16 @@ bare
         with_cwd(dir.path(), || {
             let result = merge_abort();
             assert!(result.is_err());
+        });
+    }
+
+    #[test]
+    fn test_reset_merge_clean_repo() {
+        let dir = setup_test_repo();
+        with_cwd(dir.path(), || {
+            // reset --merge on clean repo is a no-op success
+            let result = reset_merge();
+            assert!(result.is_ok());
         });
     }
 

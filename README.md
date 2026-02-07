@@ -40,17 +40,18 @@ Supported shells: bash, zsh, fish, PowerShell
 # Create a worktree and enter it
 wt new feature-x
 
-# List all worktrees
-wt ls
+# ... develop, commit ...
 
-# Switch to another worktree
-wt cd feature-y
-
-# Return to main repository
-wt main
-
-# Merge and cleanup
+# Merge back to trunk and cleanup
 wt merge
+```
+
+Other useful commands:
+
+```bash
+wt ls              # List all worktrees
+wt cd feature-y    # Switch to another worktree
+wt main            # Return to main repository
 ```
 
 ## Snap Mode

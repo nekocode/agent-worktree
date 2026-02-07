@@ -40,17 +40,18 @@ wt setup
 # 创建 worktree 并进入
 wt new feature-x
 
-# 列出所有 worktree
-wt ls
+# ... 开发、提交 ...
 
-# 切换到另一个 worktree
-wt cd feature-y
-
-# 返回主仓库
-wt main
-
-# 合并并清理
+# 合并回 trunk 并清理
 wt merge
+```
+
+其他常用命令：
+
+```bash
+wt ls              # 列出所有 worktree
+wt cd feature-y    # 切换到另一个 worktree
+wt main            # 返回主仓库
 ```
 
 ## Snap 模式

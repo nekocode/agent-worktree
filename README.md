@@ -4,6 +4,8 @@ A Git worktree workflow tool for AI coding agents. Enables parallel development 
 
 [中文文档](README.zh-CN.md)
 
+![Cover](cover.jpg)
+
 ## Why
 
 AI coding agents work best with isolated environments:

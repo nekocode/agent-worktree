@@ -4,6 +4,8 @@
 
 [English](README.md)
 
+![Cover](cover.jpg)
+
 ## 为什么需要
 
 AI 编程 agent 在隔离环境中工作效果最佳：

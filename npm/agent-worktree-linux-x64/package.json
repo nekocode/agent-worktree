@@ -1,6 +1,6 @@
 {
   "name": "@nekocode/agent-worktree-linux-x64",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "agent-worktree binary for Linux x64",
   "license": "MIT",
   "repository": {

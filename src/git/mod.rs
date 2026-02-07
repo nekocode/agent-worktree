@@ -393,6 +393,75 @@ pub fn has_uncommitted_changes() -> Result<bool> {
     Ok(!output.stdout.is_empty())
 }
 
+/// Count uncommitted files in a specific worktree path
+///
+/// Returns the number of lines from `git -C <path> status --porcelain`.
+pub fn uncommitted_count_in(path: &Path) -> Result<usize> {
+    let output = Command::new("git")
+        .args(["-C", path.to_str().unwrap(), "status", "--porcelain"])
+        .output()?;
+
+    let count = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|l| !l.is_empty())
+        .count();
+
+    Ok(count)
+}
+
+/// Diff stats: (insertions, deletions)
+pub struct DiffStat {
+    pub insertions: usize,
+    pub deletions: usize,
+}
+
+/// Get diff --shortstat between two refs (committed changes)
+///
+/// Output format: " 3 files changed, 120 insertions(+), 30 deletions(-)"
+pub fn diff_shortstat(from: &str, to: &str) -> Result<DiffStat> {
+    let range = format!("{from}...{to}");
+    let output = Command::new("git")
+        .args(["diff", "--shortstat", &range])
+        .output()?;
+
+    Ok(parse_shortstat(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// Get diff --shortstat for uncommitted changes in a worktree
+pub fn diff_shortstat_in(path: &Path) -> Result<DiffStat> {
+    let output = Command::new("git")
+        .args(["-C", path.to_str().unwrap(), "diff", "--shortstat", "HEAD"])
+        .output()?;
+
+    Ok(parse_shortstat(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// Parse `git diff --shortstat` output into (insertions, deletions)
+fn parse_shortstat(output: &str) -> DiffStat {
+    let line = output.trim();
+    if line.is_empty() {
+        return DiffStat { insertions: 0, deletions: 0 };
+    }
+
+    let mut insertions = 0;
+    let mut deletions = 0;
+
+    for part in line.split(',') {
+        let part = part.trim();
+        if part.contains("insertion") {
+            insertions = part.split_whitespace().next()
+                .and_then(|n| n.parse().ok())
+                .unwrap_or(0);
+        } else if part.contains("deletion") {
+            deletions = part.split_whitespace().next()
+                .and_then(|n| n.parse().ok())
+                .unwrap_or(0);
+        }
+    }
+
+    DiffStat { insertions, deletions }
+}
+
 /// Check if current branch has any changes compared to trunk
 ///
 /// Returns true if:
@@ -983,6 +1052,44 @@ bare
             let hash = commit.unwrap();
             assert_eq!(hash.len(), 40);
         });
+    }
+
+    // =========================================================================
+    // parse_shortstat tests (pure function)
+    // =========================================================================
+    #[test]
+    fn test_parse_shortstat_full() {
+        let stat = parse_shortstat(" 3 files changed, 120 insertions(+), 30 deletions(-)");
+        assert_eq!(stat.insertions, 120);
+        assert_eq!(stat.deletions, 30);
+    }
+
+    #[test]
+    fn test_parse_shortstat_insertions_only() {
+        let stat = parse_shortstat(" 1 file changed, 5 insertions(+)");
+        assert_eq!(stat.insertions, 5);
+        assert_eq!(stat.deletions, 0);
+    }
+
+    #[test]
+    fn test_parse_shortstat_deletions_only() {
+        let stat = parse_shortstat(" 2 files changed, 10 deletions(-)");
+        assert_eq!(stat.insertions, 0);
+        assert_eq!(stat.deletions, 10);
+    }
+
+    #[test]
+    fn test_parse_shortstat_empty() {
+        let stat = parse_shortstat("");
+        assert_eq!(stat.insertions, 0);
+        assert_eq!(stat.deletions, 0);
+    }
+
+    #[test]
+    fn test_parse_shortstat_single_change() {
+        let stat = parse_shortstat(" 1 file changed, 1 insertion(+), 1 deletion(-)");
+        assert_eq!(stat.insertions, 1);
+        assert_eq!(stat.deletions, 1);
     }
 
     #[test]

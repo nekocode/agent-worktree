@@ -266,7 +266,7 @@ agent-worktree/
 │   │   └── commands/
 │   │       ├── mod.rs   # 命令模块导出
 │   │       ├── new.rs   # wt new [branch] [--base] [-s]
-│   │       ├── ls.rs    # wt ls
+│   │       ├── ls.rs    # wt ls [-l] (status/commits/diff/path)
 │   │       ├── cd.rs    # wt cd <branch>
 │   │       ├── main.rs  # wt main
 │   │       ├── rm.rs    # wt rm <branch> [--force]
@@ -281,7 +281,7 @@ agent-worktree/
 │   ├── config/
 │   │   └── mod.rs       # GlobalConfig + ProjectConfig + Config (merged)
 │   ├── git/
-│   │   └── mod.rs       # 调用 git CLI：worktree/branch/merge/rebase/reset
+│   │   └── mod.rs       # 调用 git CLI：worktree/branch/merge/rebase/reset/diff-stat
 │   ├── meta/
 │   │   └── mod.rs       # WorktreeMeta (.status.toml 读写)
 │   ├── process/

@@ -19,6 +19,7 @@ pub mod update;
 // Re-export argument types
 pub use cd::CdArgs;
 pub use init::InitArgs;
+pub use ls::LsArgs;
 pub use merge::MergeArgs;
 pub use new::NewArgs;
 pub use r#move::MoveArgs;

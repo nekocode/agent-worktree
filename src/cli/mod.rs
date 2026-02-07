@@ -67,7 +67,7 @@ enum Command {
     New(commands::NewArgs),
 
     /// List all worktrees for this project
-    Ls,
+    Ls(commands::LsArgs),
 
     /// Switch to a worktree directory
     Cd(commands::CdArgs),
@@ -111,7 +111,7 @@ impl Cli {
 
         match self.command {
             Command::New(args) => commands::new::run(args, &config, path_file),
-            Command::Ls => commands::ls::run(&config),
+            Command::Ls(args) => commands::ls::run(args, &config),
             Command::Cd(args) => commands::cd::run(args, &config, path_file),
             Command::Main => commands::main::run(&config, path_file),
             Command::Rm(args) => commands::rm::run(args, &config, path_file),
@@ -168,6 +168,18 @@ mod tests {
     #[test]
     fn test_cli_parse_ls() {
         let cli = Cli::try_parse_from(["wt", "ls"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_ls_long() {
+        let cli = Cli::try_parse_from(["wt", "ls", "-l"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_ls_long_full() {
+        let cli = Cli::try_parse_from(["wt", "ls", "--long"]);
         assert!(cli.is_ok());
     }
 

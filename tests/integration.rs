@@ -1326,7 +1326,7 @@ fn test_new_creates_metadata_file() {
             .join(".agent-worktree")
             .join("workspaces")
             .join(repo_name)
-            .join("meta-test.status.toml");
+            .join("meta-test.toml");
 
         // Meta file might exist
         if meta_path.exists() {
@@ -1768,7 +1768,7 @@ fn test_new_with_snap_creates_metadata() {
         .filter_map(|e| e.ok())
         .find(|e| e.file_name().to_string_lossy().starts_with("repo-"))
         .expect("workspace directory not found");
-    let meta_path = workspace_dir.path().join("snap-meta-test.status.toml");
+    let meta_path = workspace_dir.path().join("snap-meta-test.toml");
     assert!(meta_path.exists());
 
     let content = std::fs::read_to_string(&meta_path).unwrap();

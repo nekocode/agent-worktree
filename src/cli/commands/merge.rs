@@ -367,8 +367,7 @@ fn cleanup_worktree(branch: &str, config: &Config) -> Result<()> {
         git::delete_branch(branch, true).ok();
 
         // Remove metadata
-        let meta_path = wt_dir.join(format!("{branch}.status.toml"));
-        std::fs::remove_file(meta_path).ok();
+        crate::meta::remove_meta(&wt_dir, branch);
     }
 
     Ok(())

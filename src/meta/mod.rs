@@ -1,11 +1,39 @@
 // ===========================================================================
-// meta - Worktree Metadata (.status.toml)
+// meta - Worktree Metadata ({branch}.toml)
 // ===========================================================================
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+
+// ---------------------------------------------------------------------------
+// 路径工具 — 文件名从 .status.toml 迁移到 .toml，保持向前兼容
+// ---------------------------------------------------------------------------
+
+/// 新格式路径: {wt_dir}/{branch}.toml
+pub fn meta_path(wt_dir: &Path, branch: &str) -> PathBuf {
+    wt_dir.join(format!("{branch}.toml"))
+}
+
+/// 兼容加载: 先找 .toml，fallback .status.toml
+pub fn meta_path_with_fallback(wt_dir: &Path, branch: &str) -> PathBuf {
+    let new = meta_path(wt_dir, branch);
+    if new.exists() {
+        return new;
+    }
+    let legacy = wt_dir.join(format!("{branch}.status.toml"));
+    if legacy.exists() {
+        return legacy;
+    }
+    new
+}
+
+/// 删除 meta 文件（新旧格式都尝试）
+pub fn remove_meta(wt_dir: &Path, branch: &str) {
+    std::fs::remove_file(meta_path(wt_dir, branch)).ok();
+    std::fs::remove_file(wt_dir.join(format!("{branch}.status.toml"))).ok();
+}
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -83,7 +111,7 @@ mod tests {
     #[test]
     fn test_save_and_load() {
         let dir = tempdir().unwrap();
-        let path = dir.path().join("test.status.toml");
+        let path = dir.path().join("test.toml");
 
         let meta = WorktreeMeta::new("def456".to_string(), "develop".to_string())
             .with_snap("aider".to_string());
@@ -119,5 +147,49 @@ snap_command = "claude --model opus"
 "#;
         let meta: WorktreeMeta = toml::from_str(toml).unwrap();
         assert_eq!(meta.snap_command, Some("claude --model opus".to_string()));
+    }
+
+    #[test]
+    fn test_meta_path() {
+        let dir = std::path::PathBuf::from("/tmp/wt");
+        assert_eq!(meta_path(&dir, "fox"), PathBuf::from("/tmp/wt/fox.toml"));
+    }
+
+    #[test]
+    fn test_meta_path_with_fallback_new_exists() {
+        let dir = tempdir().unwrap();
+        let new = dir.path().join("br.toml");
+        std::fs::write(&new, "x").unwrap();
+        assert_eq!(meta_path_with_fallback(dir.path(), "br"), new);
+    }
+
+    #[test]
+    fn test_meta_path_with_fallback_legacy() {
+        let dir = tempdir().unwrap();
+        let legacy = dir.path().join("br.status.toml");
+        std::fs::write(&legacy, "x").unwrap();
+        assert_eq!(meta_path_with_fallback(dir.path(), "br"), legacy);
+    }
+
+    #[test]
+    fn test_meta_path_with_fallback_neither() {
+        let dir = tempdir().unwrap();
+        // Neither exists → returns new format path
+        let expected = dir.path().join("br.toml");
+        assert_eq!(meta_path_with_fallback(dir.path(), "br"), expected);
+    }
+
+    #[test]
+    fn test_remove_meta() {
+        let dir = tempdir().unwrap();
+        let new = dir.path().join("br.toml");
+        let legacy = dir.path().join("br.status.toml");
+        std::fs::write(&new, "x").unwrap();
+        std::fs::write(&legacy, "x").unwrap();
+
+        remove_meta(dir.path(), "br");
+
+        assert!(!new.exists());
+        assert!(!legacy.exists());
     }
 }

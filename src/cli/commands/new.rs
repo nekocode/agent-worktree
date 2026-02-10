@@ -9,7 +9,7 @@ use clap::Args;
 use crate::cli::{write_path_file, write_path_file_lines, Error, Result};
 use crate::config::Config;
 use crate::git;
-use crate::meta::WorktreeMeta;
+use crate::meta::{self, WorktreeMeta};
 use crate::process;
 use crate::prompt::{self, SnapExitChoice};
 use crate::util;
@@ -66,7 +66,7 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
         meta = meta.with_snap(cmd.clone());
     }
 
-    let meta_path = wt_dir.join(format!("{branch}.status.toml"));
+    let meta_path = meta::meta_path(&wt_dir, &branch);
     meta.save(&meta_path)
         .map_err(|e| Error::Other(e.to_string()))?;
 
@@ -258,11 +258,8 @@ fn cleanup_worktree(wt_path: &Path, branch: &str, config: &Config) -> Result<()>
 
     // Remove metadata
     if let Ok(workspace_id) = git::workspace_id() {
-        let meta_path = config
-            .workspaces_dir
-            .join(&workspace_id)
-            .join(format!("{branch}.status.toml"));
-        std::fs::remove_file(meta_path).ok();
+        let wt_dir = config.workspaces_dir.join(&workspace_id);
+        meta::remove_meta(&wt_dir, branch);
     }
 
     Ok(())

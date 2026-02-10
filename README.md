@@ -152,7 +152,7 @@ copy_files = ["*.secret.*"]
 ├── config.toml                    # Global config
 └── workspaces/
     └── {project}/
-        ├── swift-fox.status.toml  # Worktree metadata
+        ├── swift-fox.toml         # Worktree metadata
         ├── swift-fox/             # Worktree directory
         └── ...
 ```

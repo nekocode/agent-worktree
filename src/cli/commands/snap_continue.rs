@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use crate::cli::{write_path_file, Error, Result};
 use crate::config::Config;
 use crate::git;
-use crate::meta::WorktreeMeta;
+use crate::meta::{self, WorktreeMeta};
 use crate::process;
 use crate::prompt::{self, SnapExitChoice, SnapMergeChoice};
 
@@ -67,11 +67,9 @@ pub fn gather_context(config: &Config) -> Result<SnapContext> {
     let workspace_id = git::workspace_id()?;
     let repo_root = git::repo_root()?;
 
-    // Load metadata to get trunk
-    let meta_path = config
-        .workspaces_dir
-        .join(&workspace_id)
-        .join(format!("{}.status.toml", branch));
+    // Load metadata to get trunk (fallback to legacy .status.toml)
+    let wt_dir = config.workspaces_dir.join(&workspace_id);
+    let meta_path = meta::meta_path_with_fallback(&wt_dir, &branch);
 
     let meta = WorktreeMeta::load(&meta_path).ok();
     let trunk = meta
@@ -149,11 +147,8 @@ pub fn cleanup_worktree(wt_path: &Path, branch: &str, config: &Config) -> Result
 
     // Remove metadata
     if let Ok(workspace_id) = git::workspace_id() {
-        let meta_path = config
-            .workspaces_dir
-            .join(&workspace_id)
-            .join(format!("{branch}.status.toml"));
-        std::fs::remove_file(meta_path).ok();
+        let wt_dir = config.workspaces_dir.join(&workspace_id);
+        meta::remove_meta(&wt_dir, branch);
     }
 
     Ok(())

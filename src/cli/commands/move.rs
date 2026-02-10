@@ -52,9 +52,9 @@ pub fn run(args: MoveArgs, config: &Config, path_file: Option<&Path>) -> Result<
     // Rename branch
     git::rename_branch(&old_branch, &args.new_branch)?;
 
-    // Rename metadata file
-    let old_meta = wt_dir.join(format!("{}.status.toml", old_branch));
-    let new_meta = wt_dir.join(format!("{}.status.toml", args.new_branch));
+    // Rename metadata file (find old with fallback, write new format)
+    let old_meta = crate::meta::meta_path_with_fallback(&wt_dir, &old_branch);
+    let new_meta = crate::meta::meta_path(&wt_dir, &args.new_branch);
     std::fs::rename(old_meta, new_meta).ok();
 
     eprintln!("Renamed {} -> {}", old_branch, args.new_branch);

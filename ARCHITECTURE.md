@@ -18,11 +18,11 @@ agent-worktree 是一个 Git Worktree 工作流工具，为 AI coding agent 提�
 ├── config.toml                    # 全局配置
 └── workspaces/                    # 所有 worktree 存储位置
     └── {project}/                 # 按项目组织
-        ├── swift-fox.status.toml  # worktree 的状态信息
+        ├── swift-fox.toml         # worktree 元数据（旧版 .status.toml 仍兼容）
         ├── swift-fox/             # 随机生成的分支名
-        ├── fix-auth-bug.status.toml
+        ├── fix-auth-bug.toml
         ├── fix-auth-bug/          # 用户指定的分支名
-        ├── quiet-moon.status.toml
+        ├── quiet-moon.toml
         └── quiet-moon/
             └── ...                # 项目文件
 
@@ -283,7 +283,7 @@ agent-worktree/
 │   ├── git/
 │   │   └── mod.rs       # 调用 git CLI：worktree/branch/merge/rebase/reset/diff-stat
 │   ├── meta/
-│   │   └── mod.rs       # WorktreeMeta (.status.toml 读写)
+│   │   └── mod.rs       # WorktreeMeta (.toml 读写 + .status.toml 兼容)
 │   ├── process/
 │   │   └── mod.rs       # run_interactive, run_hook, run_hooks
 │   ├── shell/

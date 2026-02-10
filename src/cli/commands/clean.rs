@@ -58,8 +58,7 @@ pub fn run(config: &Config, path_file: Option<&Path>) -> Result<()> {
             std::env::set_current_dir(&main_path).ok();
             git::delete_branch(branch, false).ok();
 
-            let meta_path = wt_dir.join(format!("{branch}.status.toml"));
-            std::fs::remove_file(meta_path).ok();
+            crate::meta::remove_meta(&wt_dir, branch);
 
             cleaned += 1;
 

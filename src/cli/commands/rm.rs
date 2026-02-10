@@ -52,8 +52,7 @@ pub fn run(args: RmArgs, config: &Config, path_file: Option<&Path>) -> Result<()
     git::delete_branch(&branch, args.force).ok();
 
     // Remove metadata
-    let meta_path = wt_dir.join(format!("{branch}.status.toml"));
-    std::fs::remove_file(meta_path).ok();
+    crate::meta::remove_meta(&wt_dir, &branch);
 
     eprintln!("Removed worktree: {branch}");
 

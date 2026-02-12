@@ -60,8 +60,8 @@ AI agent 工作流一行搞定：
 
 ```bash
 wt new -s claude           # 随机分支名
-wt new fix-bug -s cursor   # 指定分支名
-wt new -s "aider --model sonnet"  # 带参数的命令
+wt new fix-bug -s codex    # 指定分支名
+wt new -s "claude --dangerously-skip-permissions"  # 带参数的命令
 ```
 
 流程：创建 worktree → 进入 → 运行 agent → [开发] → agent 退出 → 检查更改 → 合并 → 清理

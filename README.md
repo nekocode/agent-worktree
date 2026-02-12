@@ -60,8 +60,8 @@ One-liner for AI agent workflows:
 
 ```bash
 wt new -s claude           # Random branch name
-wt new fix-bug -s cursor   # Specified branch name
-wt new -s "aider --model sonnet"  # Command with arguments
+wt new fix-bug -s codex    # Specified branch name
+wt new -s "claude --dangerously-skip-permissions"  # Command with arguments
 ```
 
 Flow: Create worktree → Enter → Run agent → [Develop] → Agent exits → Check changes → Merge → Cleanup

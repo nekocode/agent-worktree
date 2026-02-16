@@ -17,7 +17,7 @@ agent-worktree 是一个 Git Worktree 工作流工具，为 AI coding agent 提�
 ~/.agent-worktree/
 ├── config.toml                    # 全局配置
 └── workspaces/                    # 所有 worktree 存储位置
-    └── {project}/                 # 按项目组织
+    └── {repo}-{hash}/             # 按项目组织（hash 基于仓库绝对路径，防止同名冲突）
         ├── swift-fox.toml         # worktree 元数据（旧版 .status.toml 仍兼容）
         ├── swift-fox/             # 随机生成的分支名
         ├── fix-auth-bug.toml
@@ -36,6 +36,7 @@ agent-worktree 是一个 Git Worktree 工作流工具，为 AI coding agent 提�
 created_at = 2024-01-15T10:30:00Z
 base_commit = "abc1234"
 trunk = "main"
+snap_command = "claude"          # 可选，snap 模式时记录启动命令
 ```
 
 ---
@@ -211,7 +212,7 @@ merge 遇到冲突时，通过 `.git/WT_MERGE_BRANCH` 文件记录正在合并�
 
 ```toml
 [general]
-merge_strategy = "rebase"               # squash | merge | rebase
+merge_strategy = "squash"               # squash（默认） | merge | rebase
 # 从主仓库复制到新 worktree 的文件（通常是被 gitignore 但开发必需的），支持 glob
 copy_files = ["*.secret.*"]
 
@@ -220,6 +221,13 @@ post_create = []
 pre_merge = []
 post_merge = []
 ```
+
+### 配置合并规则
+
+- `copy_files`：global + project **追加**合并
+- `hooks`：project 非空时**完全替代** global（不追加）
+- `merge_strategy`：使用 global 值（project 不可覆盖）
+- `trunk`：仅 project 级别配置
 
 ### 项目配置 `.agent-worktree.toml`
 
@@ -245,7 +253,7 @@ pre_merge = ["pnpm test", "pnpm lint"]
 
 ```
 agent-worktree/
-├── Cargo.toml           # 依赖：clap, serde, toml, directories, chrono, thiserror, rand, dialoguer, glob
+├── Cargo.toml           # 依赖：clap, serde, toml, directories, chrono, thiserror, rand, dialoguer, ignore, dirs, ureq
 ├── npm/                 # npm 分发包
 │   ├── agent-worktree/  # 主包（JS wrapper）
 │   │   ├── package.json
@@ -266,7 +274,7 @@ agent-worktree/
 │   │   └── commands/
 │   │       ├── mod.rs   # 命令模块导出
 │   │       ├── new.rs   # wt new [branch] [--base] [-s]
-│   │       ├── ls.rs    # wt ls [-l] (status/commits/diff/path)
+│   │       ├── ls.rs    # wt ls [-l] (--long 显示完整路径)
 │   │       ├── cd.rs    # wt cd <branch>
 │   │       ├── main.rs  # wt main
 │   │       ├── rm.rs    # wt rm <branch> [--force]
@@ -295,4 +303,6 @@ agent-worktree/
 │   └── util/
 │       ├── mod.rs
 │       └── branch_name.rs  # generate_branch_name, generate_unique_branch_name
+└── tests/
+    └── integration.rs   # 集成测试（CLI 命令端到端验证）
 ```

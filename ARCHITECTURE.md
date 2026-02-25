@@ -226,7 +226,7 @@ post_merge = []
 
 - `copy_files`：global + project **追加**合并
 - `hooks`：project 非空时**完全替代** global（不追加）
-- `merge_strategy`：使用 global 值（project 不可覆盖）
+- `merge_strategy`：project 设置时覆盖 global，否则用 global 值
 - `trunk`：仅 project 级别配置
 
 ### 项目配置 `.agent-worktree.toml`

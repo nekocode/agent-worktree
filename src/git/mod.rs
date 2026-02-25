@@ -12,6 +12,7 @@ pub use worktree::*;
 pub use branch::*;
 pub use ops::*;
 
+use std::path::Path;
 use std::process::Command;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -74,6 +75,12 @@ fn clean_git_error(stderr: &str) -> String {
     }
 
     msg.to_string()
+}
+
+/// Convert a Path to &str, returning an error for non-UTF-8 paths
+fn path_to_str(path: &Path) -> Result<&str> {
+    path.to_str()
+        .ok_or_else(|| Error::Command(format!("path contains invalid UTF-8: {}", path.display())))
 }
 
 /// Execute a git command, return error from stderr on failure

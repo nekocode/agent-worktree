@@ -131,14 +131,22 @@ fn copy_files(from: &Path, to: &Path, config: &Config) -> Result<()> {
     for entry in walker.flatten() {
         let path = entry.path();
         if path.is_file() {
-            let rel = path.strip_prefix(from).unwrap();
+            let rel = match path.strip_prefix(from) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
             let dest = to.join(rel);
 
             if let Some(parent) = dest.parent() {
-                std::fs::create_dir_all(parent).ok();
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    eprintln!("Warning: failed to create directory {}: {e}", parent.display());
+                    continue;
+                }
             }
 
-            std::fs::copy(path, &dest).ok();
+            if let Err(e) = std::fs::copy(path, &dest) {
+                eprintln!("Warning: failed to copy {}: {e}", rel.display());
+            }
         }
     }
 

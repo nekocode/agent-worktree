@@ -5,11 +5,11 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::{run, Error, Result};
+use super::{path_to_str, run, Error, Result};
 
 /// Create a new worktree
 pub fn create_worktree(path: &Path, branch: &str, base: &str) -> Result<()> {
-    let path_str = path.to_str().unwrap();
+    let path_str = path_to_str(path)?;
 
     // Check if branch already exists
     if super::branch_exists(branch)? {
@@ -31,17 +31,18 @@ pub fn create_worktree(path: &Path, branch: &str, base: &str) -> Result<()> {
 
 /// Remove a worktree
 pub fn remove_worktree(path: &Path, force: bool) -> Result<()> {
+    let path_str = path_to_str(path)?;
     let mut args = vec!["worktree", "remove"];
     if force {
         args.push("--force");
     }
-    args.push(path.to_str().unwrap());
+    args.push(path_str);
     run(&args)
 }
 
 /// Move a worktree to a new path
 pub fn move_worktree(old_path: &Path, new_path: &Path) -> Result<()> {
-    run(&["worktree", "move", old_path.to_str().unwrap(), new_path.to_str().unwrap()])
+    run(&["worktree", "move", path_to_str(old_path)?, path_to_str(new_path)?])
 }
 
 /// List all worktrees

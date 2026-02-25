@@ -63,6 +63,8 @@ pub struct GeneralConfig {
 pub struct ProjectGeneralConfig {
     pub trunk: Option<String>,
 
+    pub merge_strategy: Option<MergeStrategy>,
+
     #[serde(default)]
     pub copy_files: Vec<String>,
 }
@@ -132,8 +134,9 @@ impl Config {
         let global = Self::load_global(&base_dir)?;
         let project = Self::load_project()?;
 
-        // Merge: project overrides global
-        let merge_strategy = global.general.merge_strategy;
+        // Project merge_strategy overrides global if set
+        let merge_strategy = project.general.merge_strategy
+            .unwrap_or(global.general.merge_strategy);
         let mut copy_files = global.general.copy_files;
         copy_files.extend(project.general.copy_files);
 
@@ -201,6 +204,7 @@ mod tests {
     fn test_project_config_defaults() {
         let config = ProjectConfig::default();
         assert!(config.general.trunk.is_none());
+        assert!(config.general.merge_strategy.is_none());
         assert!(config.general.copy_files.is_empty());
     }
 
@@ -234,8 +238,20 @@ post_create = ["pnpm install"]
 "#;
         let config: ProjectConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.general.trunk, Some("develop".to_string()));
+        assert!(config.general.merge_strategy.is_none());
         assert_eq!(config.general.copy_files, vec![".env", ".env.local"]);
         assert_eq!(config.hooks.post_create, vec!["pnpm install"]);
+    }
+
+    #[test]
+    fn test_project_config_merge_strategy_override() {
+        let toml = r#"
+[general]
+trunk = "main"
+merge_strategy = "rebase"
+"#;
+        let config: ProjectConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.general.merge_strategy, Some(MergeStrategy::Rebase));
     }
 
     #[test]
@@ -341,6 +357,7 @@ post_merge = ["git push", "notify-team"]
     fn test_project_general_config_defaults() {
         let general = ProjectGeneralConfig::default();
         assert!(general.trunk.is_none());
+        assert!(general.merge_strategy.is_none());
         assert!(general.copy_files.is_empty());
     }
 
@@ -382,6 +399,7 @@ post_merge = ["git push", "notify-team"]
         let config = ProjectConfig {
             general: ProjectGeneralConfig {
                 trunk: Some("develop".to_string()),
+                merge_strategy: None,
                 copy_files: vec![".env.local".to_string()],
             },
             hooks: HooksConfig::default(),

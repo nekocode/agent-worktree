@@ -1,5 +1,7 @@
 # agent-worktree
 
+[![npm version](https://img.shields.io/npm/v/agent-worktree)](https://www.npmjs.com/package/agent-worktree)
+
 为 AI 编程 agent 设计的 Git worktree 工作流工具。提供隔离的并行开发环境。
 
 [English](README.md)

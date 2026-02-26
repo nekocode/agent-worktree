@@ -1,5 +1,7 @@
 # agent-worktree
 
+[![npm version](https://img.shields.io/npm/v/agent-worktree)](https://www.npmjs.com/package/agent-worktree)
+
 A Git worktree workflow tool for AI coding agents. Enables parallel development with isolated environments.
 
 [中文文档](README.zh-CN.md)

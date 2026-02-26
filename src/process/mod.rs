@@ -12,33 +12,20 @@ pub enum Error {
     #[error("failed to spawn process: {0}")]
     Spawn(#[from] std::io::Error),
 
-    #[error("process failed with status: {0}")]
-    Failed(ExitStatus),
-
     #[error("hook '{0}' failed")]
     HookFailed(String),
 }
 
 /// Run a command in the specified directory, inheriting stdio.
 pub fn run_interactive(command: &str, cwd: &Path) -> Result<ExitStatus> {
-    let status = if cfg!(target_os = "windows") {
-        Command::new("cmd")
-            .args(["/C", command])
-            .current_dir(cwd)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()?
-    } else {
-        Command::new("sh")
-            .args(["-c", command])
-            .current_dir(cwd)
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()?
-    };
-
+    let (shell, flag) = if cfg!(windows) { ("cmd", "/C") } else { ("sh", "-c") };
+    let status = Command::new(shell)
+        .args([flag, command])
+        .current_dir(cwd)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()?;
     Ok(status)
 }
 

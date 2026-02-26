@@ -84,43 +84,7 @@ pub fn setup_worktree_test_env() -> (tempfile::TempDir, PathBuf, PathBuf) {
     let repo = dir.path().join("repo");
     std::fs::create_dir_all(&repo).unwrap();
 
-    Command::new("git")
-        .args(["init"])
-        .current_dir(&repo)
-        .output()
-        .expect("git init failed");
-
-    Command::new("git")
-        .args(["config", "user.email", "test@test.com"])
-        .current_dir(&repo)
-        .output()
-        .unwrap();
-
-    Command::new("git")
-        .args(["config", "user.name", "Test User"])
-        .current_dir(&repo)
-        .output()
-        .unwrap();
-
-    std::fs::write(repo.join("README.md"), "# Test Repo\n").unwrap();
-
-    Command::new("git")
-        .args(["add", "."])
-        .current_dir(&repo)
-        .output()
-        .unwrap();
-
-    Command::new("git")
-        .args(["commit", "-m", "Initial commit"])
-        .current_dir(&repo)
-        .output()
-        .unwrap();
-
-    Command::new("git")
-        .args(["branch", "-M", "main"])
-        .current_dir(&repo)
-        .output()
-        .ok();
+    setup_git_repo(&repo);
 
     let home = dir.path().join("home");
     let wt_dir = home.join(".agent-worktree");

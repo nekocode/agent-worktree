@@ -70,10 +70,7 @@ pub fn run(args: SyncArgs, config: &Config) -> Result<()> {
     }
 
     let current = git::current_branch()?;
-    let trunk = config
-        .trunk
-        .clone()
-        .unwrap_or_else(|| git::detect_trunk().unwrap_or_else(|_| "main".into()));
+    let trunk = config.resolve_trunk();
 
     if current == trunk {
         return Err(Error::Other("Already on trunk branch".into()));

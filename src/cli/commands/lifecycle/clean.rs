@@ -19,10 +19,7 @@ pub fn run(config: &Config, path_file: Option<&Path>) -> Result<()> {
         return Ok(());
     }
 
-    let trunk = config
-        .trunk
-        .clone()
-        .unwrap_or_else(|| git::detect_trunk().unwrap_or_else(|_| "main".into()));
+    let trunk = config.resolve_trunk();
 
     let worktrees = git::list_worktrees()?;
     let mut cleaned = 0;

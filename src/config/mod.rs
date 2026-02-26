@@ -50,9 +50,9 @@ pub struct ProjectConfig {
     pub hooks: HooksConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct GeneralConfig {
-    #[serde(default = "default_merge_strategy")]
+    #[serde(default)]
     pub merge_strategy: MergeStrategy,
 
     #[serde(default)]
@@ -98,19 +98,6 @@ pub enum SyncStrategy {
     Merge,
 }
 
-fn default_merge_strategy() -> MergeStrategy {
-    MergeStrategy::Squash
-}
-
-impl Default for GeneralConfig {
-    fn default() -> Self {
-        Self {
-            merge_strategy: MergeStrategy::Squash,
-            copy_files: Vec::new(),
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Merged Config (runtime)
 // ---------------------------------------------------------------------------
@@ -129,12 +116,15 @@ impl Config {
     /// Load and merge global + project config
     pub fn load() -> Result<Self> {
         let base_dir = Self::base_dir()?;
+        // Canonicalize base_dir 解决 macOS /var -> /private/var symlink，
+        // 确保与 git worktree list 返回的 canonicalized 路径一致
+        let base_dir = base_dir.canonicalize().unwrap_or(base_dir);
         let workspaces_dir = base_dir.join("workspaces");
 
         let global = Self::load_global(&base_dir)?;
         let project = Self::load_project()?;
 
-        // Project merge_strategy overrides global if set
+        // Merge: project overrides global
         let merge_strategy = project.general.merge_strategy
             .unwrap_or(global.general.merge_strategy);
         let mut copy_files = global.general.copy_files;
@@ -154,6 +144,13 @@ impl Config {
             hooks,
             trunk: project.general.trunk,
         })
+    }
+
+    /// 解析 trunk 分支：配置 > 自动检测 > 默认 "main"
+    pub fn resolve_trunk(&self) -> String {
+        self.trunk
+            .clone()
+            .unwrap_or_else(|| crate::git::detect_trunk().unwrap_or_else(|_| "main".into()))
     }
 
     pub fn base_dir() -> Result<PathBuf> {
@@ -238,20 +235,8 @@ post_create = ["pnpm install"]
 "#;
         let config: ProjectConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.general.trunk, Some("develop".to_string()));
-        assert!(config.general.merge_strategy.is_none());
         assert_eq!(config.general.copy_files, vec![".env", ".env.local"]);
         assert_eq!(config.hooks.post_create, vec!["pnpm install"]);
-    }
-
-    #[test]
-    fn test_project_config_merge_strategy_override() {
-        let toml = r#"
-[general]
-trunk = "main"
-merge_strategy = "rebase"
-"#;
-        let config: ProjectConfig = toml::from_str(toml).unwrap();
-        assert_eq!(config.general.merge_strategy, Some(MergeStrategy::Rebase));
     }
 
     #[test]
@@ -289,12 +274,6 @@ merge_strategy = "rebase"
     // =========================================================================
     // Additional tests for better coverage
     // =========================================================================
-
-    #[test]
-    fn test_default_merge_strategy() {
-        let strategy = default_merge_strategy();
-        assert_eq!(strategy, MergeStrategy::Squash);
-    }
 
     #[test]
     fn test_merge_strategy_merge() {
@@ -347,13 +326,6 @@ post_merge = ["git push", "notify-team"]
     }
 
     #[test]
-    fn test_general_config_default() {
-        let general = GeneralConfig::default();
-        assert_eq!(general.merge_strategy, MergeStrategy::Squash);
-        assert!(general.copy_files.is_empty());
-    }
-
-    #[test]
     fn test_project_general_config_defaults() {
         let general = ProjectGeneralConfig::default();
         assert!(general.trunk.is_none());
@@ -392,6 +364,26 @@ post_merge = ["git push", "notify-team"]
         assert!(serialized.contains("rebase"));
         assert!(serialized.contains(".env"));
         assert!(serialized.contains("npm install"));
+    }
+
+    #[test]
+    fn test_project_merge_strategy_override() {
+        let toml = r#"
+[general]
+merge_strategy = "rebase"
+"#;
+        let config: ProjectConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.general.merge_strategy, Some(MergeStrategy::Rebase));
+    }
+
+    #[test]
+    fn test_project_merge_strategy_absent() {
+        let toml = r#"
+[general]
+trunk = "develop"
+"#;
+        let config: ProjectConfig = toml::from_str(toml).unwrap();
+        assert!(config.general.merge_strategy.is_none());
     }
 
     #[test]

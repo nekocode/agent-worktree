@@ -57,9 +57,11 @@ fn test_mv_existing_branch() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let output = Command::new(wt_binary())
         .args(["mv", "mv-old-name", "mv-new-name"])
@@ -83,9 +85,11 @@ fn test_mv_renames_worktree() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let output = Command::new(wt_binary())
         .args(["mv", "mv-src", "mv-dst"])

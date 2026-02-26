@@ -36,10 +36,7 @@ pub fn run(args: LsArgs, config: &Config) -> Result<()> {
         return Ok(());
     }
 
-    let trunk = config
-        .trunk
-        .clone()
-        .unwrap_or_else(|| git::detect_trunk().unwrap_or_else(|_| "main".into()));
+    let trunk = config.resolve_trunk();
 
     let current = git::current_branch().ok();
     let home = dirs::home_dir();

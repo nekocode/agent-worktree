@@ -2,10 +2,9 @@
 // git/ops - Git 执行操作
 // ===========================================================================
 
-use std::path::Path;
 use std::process::Command;
 
-use super::{run, run_extract, Result};
+use super::{run, Result};
 
 /// Run git merge
 pub fn merge(branch: &str, squash: bool, no_ff: bool, message: Option<&str>) -> Result<()> {
@@ -21,7 +20,7 @@ pub fn merge(branch: &str, squash: bool, no_ff: bool, message: Option<&str>) -> 
         args.push(msg);
     }
     args.push(branch);
-    run_extract(&args)
+    run(&args)
 }
 
 /// Run git rebase
@@ -36,7 +35,7 @@ pub fn checkout(branch: &str) -> Result<()> {
 
 /// Commit staged changes
 pub fn commit(message: &str) -> Result<()> {
-    run_extract(&["commit", "-m", message])
+    run(&["commit", "-m", message])
 }
 
 /// Fetch updates from remote
@@ -75,38 +74,27 @@ pub fn reset_merge() -> Result<()> {
 
 /// Continue an in-progress merge (after conflict resolution)
 pub fn merge_continue() -> Result<()> {
-    run_extract(&["commit", "--no-edit"])
+    run(&["commit", "--no-edit"])
+}
+
+/// 获取 git 目录路径
+fn git_dir() -> Option<std::path::PathBuf> {
+    Command::new("git")
+        .args(["rev-parse", "--git-dir"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| std::path::PathBuf::from(String::from_utf8_lossy(&o.stdout).trim()))
 }
 
 /// Check if a rebase is in progress
 pub fn is_rebase_in_progress() -> bool {
-    let git_dir = Command::new("git")
-        .args(["rev-parse", "--git-dir"])
-        .output()
-        .ok()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
-
-    if let Some(dir) = git_dir {
-        let rebase_merge = Path::new(&dir).join("rebase-merge");
-        let rebase_apply = Path::new(&dir).join("rebase-apply");
-        return rebase_merge.exists() || rebase_apply.exists();
-    }
-
-    false
+    git_dir().map_or(false, |d| {
+        d.join("rebase-merge").exists() || d.join("rebase-apply").exists()
+    })
 }
 
 /// Check if a merge is in progress
 pub fn is_merge_in_progress() -> bool {
-    let git_dir = Command::new("git")
-        .args(["rev-parse", "--git-dir"])
-        .output()
-        .ok()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
-
-    if let Some(dir) = git_dir {
-        let merge_head = Path::new(&dir).join("MERGE_HEAD");
-        return merge_head.exists();
-    }
-
-    false
+    git_dir().map_or(false, |d| d.join("MERGE_HEAD").exists())
 }

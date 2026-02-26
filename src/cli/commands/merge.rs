@@ -87,63 +87,67 @@ impl From<MergeStrategyArg> for MergeStrategy {
 }
 
 pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
-    // Get main repo path first (before any operations)
     let main_repo = git::repo_root()?;
 
-    // Handle abort
     if args.abort {
-        eprintln!("Aborting merge...");
-        std::env::set_current_dir(&main_repo).map_err(|e| Error::Other(e.to_string()))?;
-        abort_merge()?;
-        clear_merge_state();
-        return Ok(());
+        return run_abort(&main_repo);
     }
-
-    // Handle continue: finish merge + cleanup worktree
     if args.r#continue {
-        let branch = load_merge_state()?;
-        std::env::set_current_dir(&main_repo).map_err(|e| Error::Other(e.to_string()))?;
-        continue_merge(branch.as_deref())?;
-        clear_merge_state();
+        return run_continue(&main_repo, config, path_file);
+    }
+    run_merge(args, config, path_file, &main_repo)
+}
 
-        // Run post-merge hooks
-        if !config.hooks.post_merge.is_empty() {
-            eprintln!("Running post-merge hooks...");
-            process::run_hooks(&config.hooks.post_merge, &main_repo)
-                .map_err(|e| Error::Other(e.to_string()))?;
-        }
+fn run_abort(main_repo: &Path) -> Result<()> {
+    eprintln!("Aborting merge...");
+    std::env::set_current_dir(main_repo).map_err(|e| Error::Other(e.to_string()))?;
+    abort_merge()?;
+    clear_merge_state();
+    Ok(())
+}
 
-        // Cleanup worktree
-        if let Some(branch) = branch {
-            cleanup_worktree(&branch, config)?;
-        }
+fn run_continue(main_repo: &Path, config: &Config, path_file: Option<&Path>) -> Result<()> {
+    let branch = load_merge_state()?;
+    std::env::set_current_dir(main_repo).map_err(|e| Error::Other(e.to_string()))?;
+    continue_merge(branch.as_deref())?;
+    clear_merge_state();
 
-        eprintln!("Merge complete.");
-        if path_file.is_some() {
-            write_path_file(path_file, &main_repo)?;
-        }
-        return Ok(());
+    if !config.hooks.post_merge.is_empty() {
+        eprintln!("Running post-merge hooks...");
+        process::run_hooks(&config.hooks.post_merge, main_repo)
+            .map_err(|e| Error::Other(e.to_string()))?;
     }
 
-    // Get current state
+    if let Some(branch) = branch {
+        cleanup_worktree(&branch, config)?;
+    }
+
+    eprintln!("Merge complete.");
+    if path_file.is_some() {
+        write_path_file(path_file, main_repo)?;
+    }
+    Ok(())
+}
+
+fn run_merge(
+    args: MergeArgs,
+    config: &Config,
+    path_file: Option<&Path>,
+    main_repo: &Path,
+) -> Result<()> {
     let current = git::current_branch()?;
-    let trunk = args
-        .into
-        .or_else(|| config.trunk.clone())
-        .unwrap_or_else(|| git::detect_trunk().unwrap_or_else(|_| "main".into()));
+    let trunk = args.into.unwrap_or_else(|| config.resolve_trunk());
 
     if current == trunk {
         return Err(Error::Other("Cannot merge trunk into itself".into()));
     }
 
-    // Check for uncommitted changes
     if git::has_uncommitted_changes()? {
         return Err(Error::Other(
             "Uncommitted changes detected. Commit or stash first.".into(),
         ));
     }
 
-    // Check if running from inside worktree
     let workspace_id = git::workspace_id()?;
     let wt_path = config.workspaces_dir.join(&workspace_id).join(&current);
     let inside_worktree = git::is_cwd_inside(&wt_path);
@@ -153,7 +157,6 @@ pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result
         .map(MergeStrategy::from)
         .unwrap_or(config.merge_strategy);
 
-    // Run pre-merge hooks (in worktree, before switching to main)
     if !args.skip_hooks && !config.hooks.pre_merge.is_empty() {
         let cwd = std::env::current_dir().map_err(|e| Error::Other(e.to_string()))?;
         eprintln!("Running pre-merge hooks...");
@@ -161,15 +164,15 @@ pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
-    // Show what will be merged
     let commit_count = git::commit_count(&trunk, &current).unwrap_or(0);
     eprintln!("Merging {current} into {trunk} ({commit_count} commits, {strategy:?})");
 
-    // Switch to main repo and checkout trunk
-    std::env::set_current_dir(&main_repo).map_err(|e| Error::Other(e.to_string()))?;
+    std::env::set_current_dir(main_repo).map_err(|e| Error::Other(e.to_string()))?;
 
-    // Check for dirty state from a previous failed merge
-    if git::has_uncommitted_changes()? || git::is_merge_in_progress() || git::is_rebase_in_progress() {
+    if git::has_uncommitted_changes()?
+        || git::is_merge_in_progress()
+        || git::is_rebase_in_progress()
+    {
         return Err(Error::Other(
             "Main repo has uncommitted changes or unresolved conflicts.".into(),
         ));
@@ -177,7 +180,6 @@ pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result
 
     git::checkout(&trunk)?;
 
-    // Execute merge
     match execute_merge(&current, &trunk, strategy) {
         Ok(false) => {
             eprintln!("Nothing to merge: {current} is already up to date with {trunk}");
@@ -192,32 +194,28 @@ pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result
             eprintln!();
             eprintln!("Or abort:  wt merge --abort");
 
-            // Let shell cd to main repo so user can resolve conflicts there
             if path_file.is_some() && inside_worktree {
-                write_path_file(path_file, &main_repo)?;
+                write_path_file(path_file, main_repo)?;
             }
             return Ok(());
         }
         Ok(true) => {}
     }
 
-    // Run post-merge hooks (in main repo)
     if !config.hooks.post_merge.is_empty() {
         eprintln!("Running post-merge hooks...");
-        process::run_hooks(&config.hooks.post_merge, &main_repo)
+        process::run_hooks(&config.hooks.post_merge, main_repo)
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
-    // Clean up unless --keep
     if !args.keep {
         cleanup_worktree(&current, config)?;
     }
 
     eprintln!("Merge complete.");
 
-    // Write main repo path for shell to cd if we were inside worktree
     if path_file.is_some() && inside_worktree {
-        write_path_file(path_file, &main_repo)?;
+        write_path_file(path_file, main_repo)?;
     }
 
     Ok(())
@@ -306,43 +304,30 @@ fn abort_merge() -> Result<()> {
 
 /// Continue in-progress merge/rebase
 fn continue_merge(branch: Option<&str>) -> Result<()> {
-    // Try continuing rebase first (more common to have conflicts during rebase)
-    let rebase_continue = std::process::Command::new("git")
-        .args(["rebase", "--continue"])
-        .output()
-        .map_err(|e| Error::Other(e.to_string()))?;
-
-    if rebase_continue.status.success() {
+    // 尝试继续 rebase
+    if git::rebase_continue().is_ok() {
         eprintln!("Rebase continued.");
         return Ok(());
     }
 
-    // Try continuing merge/squash (need to commit)
+    // 尝试继续 merge/squash（需要 commit）
     if git::has_uncommitted_changes()? {
-        // Squash merge has no MERGE_HEAD — build our own message
-        let args = if !git::is_merge_in_progress() {
+        if !git::is_merge_in_progress() {
+            // Squash merge 没有 MERGE_HEAD，需要自己构建 commit message
             if let Some(branch) = branch {
                 let trunk = git::current_branch().unwrap_or_default();
                 let log = git::log_oneline(&trunk, branch).unwrap_or_default();
                 let msg = build_merge_message(branch, &log);
-                vec!["commit".to_string(), "-m".to_string(), msg]
+                git::commit(&msg)?;
             } else {
-                vec!["commit".to_string(), "--no-edit".to_string()]
+                git::merge_continue()?;
             }
         } else {
-            // Regular merge — message already set by git merge -m
-            vec!["commit".to_string(), "--no-edit".to_string()]
-        };
-
-        let merge_continue = std::process::Command::new("git")
-            .args(&args)
-            .output()
-            .map_err(|e| Error::Other(e.to_string()))?;
-
-        if merge_continue.status.success() {
-            eprintln!("Merge continued.");
-            return Ok(());
+            // 常规 merge — message 已由 git merge -m 设置
+            git::merge_continue()?;
         }
+        eprintln!("Merge continued.");
+        return Ok(());
     }
 
     Err(Error::Other(
@@ -351,7 +336,7 @@ fn continue_merge(branch: Option<&str>) -> Result<()> {
 }
 
 /// Clean up worktree after successful merge
-fn cleanup_worktree(branch: &str, config: &Config) -> Result<()> {
+pub fn cleanup_worktree(branch: &str, config: &Config) -> Result<()> {
     let workspace_id = git::workspace_id()?;
     let wt_dir = config.workspaces_dir.join(&workspace_id);
     let wt_path = wt_dir.join(branch);

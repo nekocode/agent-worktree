@@ -134,7 +134,6 @@ fn test_worktree_lifecycle_new_ls_rm() {
         assert!(
             stdout.contains("feature-test")
                 || stderr.contains("feature-test")
-                || stderr.contains("No worktrees")
         );
 
         let output = Command::new(wt_binary())
@@ -160,9 +159,11 @@ fn test_full_worktree_lifecycle() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let wt_path = read_path_file(&path_file).trim().to_string();
     assert!(wt_path.contains("feature-lifecycle"));
@@ -177,7 +178,7 @@ fn test_full_worktree_lifecycle() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     let combined = format!("{}{}", stdout, stderr);
-    assert!(combined.contains("feature-lifecycle") || combined.contains("No worktrees"));
+    assert!(combined.contains("feature-lifecycle"));
 
     let output = Command::new(wt_binary())
         .args(["rm", "feature-lifecycle", "--force"])

@@ -5,7 +5,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use super::{path_to_str, run, Result};
+use super::{run, Result};
 
 /// Check if branch is merged into target
 pub fn is_merged(branch: &str, target: &str) -> Result<bool> {
@@ -62,7 +62,7 @@ pub fn has_uncommitted_changes() -> Result<bool> {
 /// Returns the number of lines from `git -C <path> status --porcelain`.
 pub fn uncommitted_count_in(path: &Path) -> Result<usize> {
     let output = Command::new("git")
-        .args(["-C", path_to_str(path)?, "status", "--porcelain"])
+        .args(["-C", super::path_str(path)?, "status", "--porcelain"])
         .output()?;
 
     let count = String::from_utf8_lossy(&output.stdout)
@@ -94,7 +94,7 @@ pub fn diff_shortstat(from: &str, to: &str) -> Result<DiffStat> {
 /// Get diff --shortstat for uncommitted changes in a worktree
 pub fn diff_shortstat_in(path: &Path) -> Result<DiffStat> {
     let output = Command::new("git")
-        .args(["-C", path_to_str(path)?, "diff", "--shortstat", "HEAD"])
+        .args(["-C", super::path_str(path)?, "diff", "--shortstat", "HEAD"])
         .output()?;
 
     Ok(parse_shortstat(&String::from_utf8_lossy(&output.stdout)))

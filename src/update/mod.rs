@@ -86,15 +86,16 @@ pub fn check_update(current_version: &str) -> Result<Option<String>> {
         .read_to_string()
         .map_err(|e| Error::Parse(e.to_string()))?;
 
-    // Parse JSON to get version field
-    let version = body
-        .split("\"version\":")
-        .nth(1)
-        .and_then(|s: &str| s.split('"').nth(1))
-        .ok_or_else(|| Error::Parse("version field not found".into()))?;
+    // 解析 JSON 获取 version 字段
+    #[derive(serde::Deserialize)]
+    struct NpmPackage {
+        version: String,
+    }
+    let pkg: NpmPackage =
+        serde_json::from_str(&body).map_err(|e| Error::Parse(e.to_string()))?;
 
-    if compare_versions(current_version, version) {
-        Ok(Some(version.to_string()))
+    if compare_versions(current_version, &pkg.version) {
+        Ok(Some(pkg.version))
     } else {
         Ok(None)
     }

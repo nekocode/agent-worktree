@@ -27,22 +27,6 @@ fn test_sync_on_trunk_fails() {
 }
 
 #[test]
-fn test_sync_on_trunk_error_message() {
-    let dir = tempdir().unwrap();
-    setup_git_repo(dir.path());
-
-    let output = Command::new(wt_binary())
-        .arg("sync")
-        .current_dir(dir.path())
-        .output()
-        .expect("wt sync failed");
-
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Already") || stderr.contains("trunk"));
-}
-
-#[test]
 fn test_sync_abort_no_rebase() {
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
@@ -96,9 +80,11 @@ fn test_sync_on_feature_branch() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let wt_path = read_path_file(&path_file).trim().to_string();
 
@@ -125,9 +111,11 @@ fn test_sync_on_feature_with_updates() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let wt_path = PathBuf::from(read_path_file(&path_file).trim());
 
@@ -150,5 +138,6 @@ fn test_sync_on_feature_with_updates() {
         .output()
         .expect("wt sync failed");
 
-    let _ = output.status;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "sync failed: {}", stderr);
 }

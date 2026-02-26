@@ -75,7 +75,7 @@ pub fn gather_context(config: &Config) -> Result<SnapContext> {
     let trunk = meta
         .as_ref()
         .map(|m| m.trunk.clone())
-        .unwrap_or_else(|| git::detect_trunk().unwrap_or_else(|_| "main".into()));
+        .unwrap_or_else(|| config.resolve_trunk());
 
     let has_uncommitted = git::has_uncommitted_changes().unwrap_or(false);
     let has_commits_ahead = git::commit_count(&trunk, "HEAD").unwrap_or(0) > 0;
@@ -240,32 +240,6 @@ mod tests {
     use super::*;
 
     // -----------------------------------------------------------------------
-    // SnapAction tests
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_snap_action_equality() {
-        assert_eq!(SnapAction::Reopen, SnapAction::Reopen);
-        assert_eq!(SnapAction::ExitPreserve, SnapAction::ExitPreserve);
-        assert_ne!(SnapAction::Reopen, SnapAction::MergeAndCleanup);
-        assert_ne!(SnapAction::ExitPreserve, SnapAction::Reopen);
-    }
-
-    #[test]
-    fn test_snap_action_clone() {
-        let action = SnapAction::MergeAndCleanup;
-        let cloned = action.clone();
-        assert_eq!(action, cloned);
-    }
-
-    #[test]
-    fn test_snap_action_debug() {
-        let action = SnapAction::CleanupNoChanges;
-        let debug = format!("{:?}", action);
-        assert!(debug.contains("CleanupNoChanges"));
-    }
-
-    // -----------------------------------------------------------------------
     // determine_action_with_choice tests
     // -----------------------------------------------------------------------
 
@@ -328,22 +302,4 @@ mod tests {
         assert_eq!(action, SnapAction::ExitPreserve);
     }
 
-    // -----------------------------------------------------------------------
-    // SnapContext tests
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_snap_context_debug() {
-        let ctx = SnapContext {
-            cwd: PathBuf::from("/tmp/test"),
-            branch: "feature".to_string(),
-            trunk: "main".to_string(),
-            repo_root: PathBuf::from("/tmp/repo"),
-            has_uncommitted: true,
-            has_commits_ahead: false,
-        };
-        let debug = format!("{:?}", ctx);
-        assert!(debug.contains("feature"));
-        assert!(debug.contains("main"));
-    }
 }

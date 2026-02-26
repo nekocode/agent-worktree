@@ -52,9 +52,11 @@ fn test_rm_force_dirty_worktree() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let wt_path = read_path_file(&path_file).trim().to_string();
 

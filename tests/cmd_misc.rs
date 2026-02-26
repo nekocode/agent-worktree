@@ -43,5 +43,5 @@ fn test_version_output() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("wt") || stdout.contains("0.1"));
+    assert!(stdout.contains("wt") || stdout.contains("0."));
 }

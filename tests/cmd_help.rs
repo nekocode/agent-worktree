@@ -113,8 +113,6 @@ fn test_merge_help_shows_strategies() {
 
 #[test]
 fn test_merge_strategy_squash() {
-    let (_dir, _repo, _home) = common::setup_worktree_test_env();
-
     let output = Command::new(wt_binary())
         .args(["merge", "--help"])
         .output()

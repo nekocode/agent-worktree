@@ -17,6 +17,12 @@ use std::process::Command;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// 安全的 Path -> &str 转换，替代 .to_str().unwrap()
+pub(crate) fn path_str(path: &Path) -> Result<&str> {
+    path.to_str()
+        .ok_or_else(|| Error::Command(format!("path contains invalid UTF-8: {}", path.display())))
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
@@ -77,24 +83,8 @@ fn clean_git_error(stderr: &str) -> String {
     msg.to_string()
 }
 
-/// Convert a Path to &str, returning an error for non-UTF-8 paths
-fn path_to_str(path: &Path) -> Result<&str> {
-    path.to_str()
-        .ok_or_else(|| Error::Command(format!("path contains invalid UTF-8: {}", path.display())))
-}
-
-/// Execute a git command, return error from stderr on failure
+/// 执行 git 命令，失败时从 stderr+stdout 提取错误信息
 fn run(args: &[&str]) -> Result<()> {
-    let output = Command::new("git").args(args).output()?;
-    if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr);
-        return Err(Error::Command(clean_git_error(&err)));
-    }
-    Ok(())
-}
-
-/// Execute a git command, return error from stderr+stdout on failure (merge/commit)
-fn run_extract(args: &[&str]) -> Result<()> {
     let output = Command::new("git").args(args).output()?;
     if !output.status.success() {
         return Err(Error::Command(extract_error(&output)));

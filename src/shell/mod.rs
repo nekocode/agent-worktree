@@ -13,9 +13,6 @@ pub enum Error {
     #[error("home directory not found")]
     NoHome,
 
-    #[error("unsupported shell: {0}")]
-    UnsupportedShell(String),
-
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -124,6 +121,14 @@ impl Shell {
 
 const MARKER_BEGIN: &str = "# === agent-worktree BEGIN ===";
 const MARKER_END: &str = "# === agent-worktree END ===";
+
+// ---------------------------------------------------------------------------
+// Shell Wrapper 脚本
+//
+// 协议约定（修改 snap 行为时，三套脚本必须同步更新）：
+// - snap-continue 退出码: 0=完成(cd 到 main), 2=重新打开 agent, 3=退出(留在 worktree)
+// - path_file 格式: 单行=目标路径, 双行=第一行路径+第二行命令(snap 模式)
+// ---------------------------------------------------------------------------
 
 const BASH_ZSH_WRAPPER: &str = r#"# === agent-worktree BEGIN ===
 # NOTE: Don't use 'path' as variable name - it shadows zsh's $path array
@@ -640,9 +645,6 @@ line2
     fn test_error_display() {
         let err = Error::NoHome;
         assert_eq!(err.to_string(), "home directory not found");
-
-        let err = Error::UnsupportedShell("ksh".to_string());
-        assert_eq!(err.to_string(), "unsupported shell: ksh");
     }
 
     // =========================================================================

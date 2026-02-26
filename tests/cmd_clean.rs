@@ -10,21 +10,6 @@ use tempfile::tempdir;
 use common::*;
 
 #[test]
-fn test_clean_empty() {
-    let dir = tempdir().unwrap();
-    setup_git_repo(dir.path());
-
-    let output = Command::new(wt_binary())
-        .arg("clean")
-        .current_dir(dir.path())
-        .output()
-        .expect("Failed to execute wt clean");
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("No") || output.status.success());
-}
-
-#[test]
 fn test_clean_no_worktrees() {
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
@@ -66,9 +51,11 @@ fn test_clean_after_merge() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     Command::new("git")
         .args(["merge", "clean-test", "--no-edit"])
@@ -97,9 +84,11 @@ fn test_clean_remvs_merged_worktree() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     Command::new("git")
         .args(["merge", "clean-merged", "--no-edit"])

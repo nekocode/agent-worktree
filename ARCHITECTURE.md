@@ -226,7 +226,7 @@ post_merge = []
 
 - `copy_files`：global + project **追加**合并
 - `hooks`：project 非空时**完全替代** global（不追加）
-- `merge_strategy`：project 设置时覆盖 global，否则用 global 值
+- `merge_strategy`：project 非空时**覆盖** global（`Option` 语义）
 - `trunk`：仅 project 级别配置
 
 ### 项目配置 `.agent-worktree.toml`
@@ -234,6 +234,7 @@ post_merge = []
 ```toml
 [general]
 trunk = "main"                    # 主干分支，默认自动检测
+merge_strategy = "rebase"         # 可选，覆盖全局策略
 copy_files = [".env", ".env.*"]
 
 [hooks]
@@ -281,7 +282,6 @@ agent-worktree/
 │   │       │   ├── rm.rs      # wt rm <branch> [--force]
 │   │       │   └── clean.rs   # wt clean
 │   │       ├── snap/          # Snap 模式完整工作流
-│   │       │   ├── start.rs   # 直接模式 snap 循环（deprecated）
 │   │       │   └── resume.rs  # agent 退出后的处理逻辑
 │   │       ├── sys/           # 系统级操作
 │   │       │   ├── init.rs    # wt init [--trunk]

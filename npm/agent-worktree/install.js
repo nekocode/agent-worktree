@@ -21,9 +21,9 @@ if (!pkg) {
   process.exit(0);
 }
 
-let pkgDir;
+let pkgJsonPath;
 try {
-  pkgDir = require.resolve(`${pkg}/package.json`);
+  pkgJsonPath = require.resolve(`${pkg}/package.json`);
 } catch {
   console.warn(`[agent-worktree] Warning: Platform package ${pkg} not installed`);
   console.warn(`[agent-worktree] This may happen if npm failed to install optional dependencies`);
@@ -31,7 +31,8 @@ try {
 }
 
 // Run 'wt setup' to install shell integration
-const binaryPath = join(pkgDir, "..", "bin", "wt");
+const exe = process.platform === "win32" ? "wt.exe" : "wt";
+const binaryPath = join(pkgJsonPath, "..", "bin", exe);
 try {
   execFileSync(binaryPath, ["setup"], { stdio: "inherit" });
 } catch {

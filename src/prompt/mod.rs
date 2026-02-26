@@ -56,40 +56,45 @@ pub fn parse_snap_merge_choice(input: &str) -> Option<SnapMergeChoice> {
     }
 }
 
-pub fn snap_merge_prompt() -> Result<SnapMergeChoice> {
+/// 通用选择提示：显示选项，读取用户输入，解析结果
+fn read_choice<T>(lines: &[&str], prompt_text: &str, parse: fn(&str) -> Option<T>) -> Result<T> {
     use std::io::{self, Write};
-
     eprintln!();
-    eprintln!("Worktree has committed changes (not yet merged).");
+    for line in lines {
+        eprintln!("{line}");
+    }
     eprintln!();
-    eprintln!("  [m] Merge into trunk");
-    eprintln!("  [q] Exit snap mode");
-    eprintln!();
-    eprint!("[m/q]: ");
+    eprint!("{prompt_text}");
     io::stderr().flush().map_err(Error::Io)?;
-
     let mut input = String::new();
     io::stdin().read_line(&mut input).map_err(Error::Io)?;
+    parse(&input).ok_or(Error::Cancelled)
+}
 
-    parse_snap_merge_choice(&input).ok_or(Error::Cancelled)
+pub fn snap_merge_prompt() -> Result<SnapMergeChoice> {
+    read_choice(
+        &[
+            "Worktree has committed changes (not yet merged).",
+            "",
+            "  [m] Merge into trunk",
+            "  [q] Exit snap mode",
+        ],
+        "[m/q]: ",
+        parse_snap_merge_choice,
+    )
 }
 
 pub fn snap_exit_prompt() -> Result<SnapExitChoice> {
-    use std::io::{self, Write};
-
-    eprintln!();
-    eprintln!("Worktree has uncommitted changes.");
-    eprintln!();
-    eprintln!("  [r] Reopen agent (let agent commit)");
-    eprintln!("  [q] Exit snap mode (commit manually)");
-    eprintln!();
-    eprint!("[r/q]: ");
-    io::stderr().flush().map_err(Error::Io)?;
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).map_err(Error::Io)?;
-
-    parse_snap_choice(&input).ok_or(Error::Cancelled)
+    read_choice(
+        &[
+            "Worktree has uncommitted changes.",
+            "",
+            "  [r] Reopen agent (let agent commit)",
+            "  [q] Exit snap mode (commit manually)",
+        ],
+        "[r/q]: ",
+        parse_snap_choice,
+    )
 }
 
 #[cfg(test)]
@@ -100,36 +105,6 @@ mod tests {
     fn test_error_display() {
         let err = Error::Cancelled;
         assert_eq!(err.to_string(), "user cancelled");
-    }
-
-    #[test]
-    fn test_snap_exit_choice_equality() {
-        assert_eq!(SnapExitChoice::Reopen, SnapExitChoice::Reopen);
-        assert_eq!(SnapExitChoice::Exit, SnapExitChoice::Exit);
-        assert_ne!(SnapExitChoice::Reopen, SnapExitChoice::Exit);
-    }
-
-    #[test]
-    fn test_snap_exit_choice_clone() {
-        let choice = SnapExitChoice::Reopen;
-        let cloned = choice;
-        assert_eq!(choice, cloned);
-    }
-
-    #[test]
-    fn test_snap_exit_choice_debug() {
-        let choice = SnapExitChoice::Reopen;
-        let debug = format!("{:?}", choice);
-        assert_eq!(debug, "Reopen");
-    }
-
-    #[test]
-    fn test_snap_exit_choice_all_variants() {
-        let variants = [SnapExitChoice::Reopen, SnapExitChoice::Exit];
-        for v in variants {
-            let _copy: SnapExitChoice = v;
-            assert!(v == v);
-        }
     }
 
     #[test]
@@ -157,13 +132,6 @@ mod tests {
     // -----------------------------------------------------------------------
     // SnapMergeChoice tests
     // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_snap_merge_choice_equality() {
-        assert_eq!(SnapMergeChoice::Merge, SnapMergeChoice::Merge);
-        assert_eq!(SnapMergeChoice::Exit, SnapMergeChoice::Exit);
-        assert_ne!(SnapMergeChoice::Merge, SnapMergeChoice::Exit);
-    }
 
     #[test]
     fn test_parse_snap_merge_choice_m() {

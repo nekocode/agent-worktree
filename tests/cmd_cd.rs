@@ -50,9 +50,11 @@ fn test_cd_to_existing_worktree() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
@@ -80,9 +82,11 @@ fn test_cd_returns_correct_path() {
         .output()
         .expect("wt new failed");
 
-    if !new_output.status.success() {
-        return;
-    }
+    assert!(
+        new_output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&new_output.stderr)
+    );
 
     let created_path = read_path_file(&path_file).trim().to_string();
 

@@ -42,22 +42,6 @@ fn test_merge_abort_no_merge() {
 }
 
 #[test]
-fn test_merge_on_trunk_error_message() {
-    let dir = tempdir().unwrap();
-    setup_git_repo(dir.path());
-
-    let output = Command::new(wt_binary())
-        .arg("merge")
-        .current_dir(dir.path())
-        .output()
-        .expect("wt merge failed");
-
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Cannot") || stderr.contains("itself") || stderr.contains("trunk"));
-}
-
-#[test]
 fn test_merge_continue_no_merge() {
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
@@ -90,9 +74,11 @@ fn test_merge_from_feature_branch() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let wt_path = read_path_file(&path_file).trim().to_string();
 
@@ -131,9 +117,11 @@ fn test_merge_with_changes() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let wt_path = PathBuf::from(read_path_file(&path_file).trim());
 
@@ -157,7 +145,7 @@ fn test_merge_with_changes() {
         .expect("wt merge failed");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let _ = (output.status, stderr);
+    assert!(output.status.success(), "merge failed: {}", stderr);
 }
 
 #[test]
@@ -172,9 +160,11 @@ fn test_merge_conflict_shows_error() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let wt_path = PathBuf::from(read_path_file(&path_file).trim());
 

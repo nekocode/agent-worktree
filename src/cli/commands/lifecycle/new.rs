@@ -33,10 +33,7 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     let workspace_id = git::workspace_id()?;
 
     // Determine trunk branch
-    let trunk = config
-        .trunk
-        .clone()
-        .unwrap_or_else(|| git::detect_trunk().unwrap_or_else(|_| "main".into()));
+    let trunk = config.resolve_trunk();
 
     // Determine base
     let base = args.base.as_deref().unwrap_or(&trunk);
@@ -82,11 +79,11 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     // Handle snap mode - write path + command for shell wrapper to execute
     if let Some(cmd) = args.snap {
         if path_file.is_some() {
-            // Shell wrapper mode: write path on first line, command on second
             write_path_file_lines(path_file, &[&wt_path.display().to_string(), &cmd])?;
         } else {
-            // Direct mode (deprecated, but keep for backward compat)
-            super::super::snap::start::run_snap_mode(&cmd, &wt_path, &branch, config, &trunk)?;
+            return Err(Error::Other(
+                "Snap mode requires shell integration. Run 'wt setup' first.".into(),
+            ));
         }
         return Ok(());
     }
@@ -133,7 +130,10 @@ fn copy_files(from: &Path, to: &Path, config: &Config) -> Result<()> {
         if path.is_file() {
             let rel = match path.strip_prefix(from) {
                 Ok(r) => r,
-                Err(_) => continue,
+                Err(e) => {
+                    eprintln!("Warning: failed to strip prefix for {}: {e}", path.display());
+                    continue;
+                }
             };
             let dest = to.join(rel);
 

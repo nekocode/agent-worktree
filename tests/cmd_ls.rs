@@ -55,9 +55,11 @@ fn test_ls_shows_worktree_details() {
         .output()
         .expect("wt new failed");
 
-    if !output.status.success() {
-        return;
-    }
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let output = Command::new(wt_binary())
         .arg("ls")
@@ -73,7 +75,6 @@ fn test_ls_shows_worktree_details() {
     assert!(
         combined.contains("ls-test-branch")
             || combined.contains("BRANCH")
-            || combined.contains("No worktrees")
     );
 }
 
@@ -105,6 +106,5 @@ fn test_ls_with_multiple_worktrees() {
     assert!(
         combined.contains("multi-ls")
             || combined.contains("BRANCH")
-            || combined.contains("No worktrees")
     );
 }

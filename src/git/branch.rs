@@ -104,7 +104,10 @@ pub fn diff_shortstat_in(path: &Path) -> Result<DiffStat> {
 pub(super) fn parse_shortstat(output: &str) -> DiffStat {
     let line = output.trim();
     if line.is_empty() {
-        return DiffStat { insertions: 0, deletions: 0 };
+        return DiffStat {
+            insertions: 0,
+            deletions: 0,
+        };
     }
 
     let mut insertions = 0;
@@ -113,17 +116,24 @@ pub(super) fn parse_shortstat(output: &str) -> DiffStat {
     for part in line.split(',') {
         let part = part.trim();
         if part.contains("insertion") {
-            insertions = part.split_whitespace().next()
+            insertions = part
+                .split_whitespace()
+                .next()
                 .and_then(|n| n.parse().ok())
                 .unwrap_or(0);
         } else if part.contains("deletion") {
-            deletions = part.split_whitespace().next()
+            deletions = part
+                .split_whitespace()
+                .next()
                 .and_then(|n| n.parse().ok())
                 .unwrap_or(0);
         }
     }
 
-    DiffStat { insertions, deletions }
+    DiffStat {
+        insertions,
+        deletions,
+    }
 }
 
 /// Check if current branch has any changes compared to trunk

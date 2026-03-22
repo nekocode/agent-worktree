@@ -39,8 +39,7 @@ fn test_ls_in_subdirectory() {
         .expect("wt ls failed");
 
     assert!(
-        output.status.success()
-            || String::from_utf8_lossy(&output.stderr).contains("No worktrees")
+        output.status.success() || String::from_utf8_lossy(&output.stderr).contains("No worktrees")
     );
 }
 
@@ -72,10 +71,7 @@ fn test_ls_shows_worktree_details() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let combined = format!("{}{}", stdout, stderr);
 
-    assert!(
-        combined.contains("ls-test-branch")
-            || combined.contains("BRANCH")
-    );
+    assert!(combined.contains("ls-test-branch") || combined.contains("BRANCH"));
 }
 
 #[test]
@@ -103,8 +99,5 @@ fn test_ls_with_multiple_worktrees() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    assert!(
-        combined.contains("multi-ls")
-            || combined.contains("BRANCH")
-    );
+    assert!(combined.contains("multi-ls") || combined.contains("BRANCH"));
 }

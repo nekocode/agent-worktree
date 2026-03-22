@@ -32,7 +32,12 @@ fn test_status_in_worktree() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "status-test", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "status-test",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -50,11 +55,26 @@ fn test_status_in_worktree() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Branch:"), "Expected Branch field, got: {stdout}");
-    assert!(stdout.contains("status-test"), "Expected branch name, got: {stdout}");
-    assert!(stdout.contains("Trunk:"), "Expected Trunk field, got: {stdout}");
-    assert!(stdout.contains("Commits:"), "Expected Commits field, got: {stdout}");
-    assert!(stdout.contains("Path:"), "Expected Path field, got: {stdout}");
+    assert!(
+        stdout.contains("Branch:"),
+        "Expected Branch field, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("status-test"),
+        "Expected branch name, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("Trunk:"),
+        "Expected Trunk field, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("Commits:"),
+        "Expected Commits field, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("Path:"),
+        "Expected Path field, got: {stdout}"
+    );
 }
 
 #[test]
@@ -63,7 +83,12 @@ fn test_status_with_commits() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "status-commits", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "status-commits",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -95,7 +120,10 @@ fn test_status_with_commits() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Should show at least 1 commit
-    assert!(stdout.contains("Commits:"), "Expected Commits field, got: {stdout}");
+    assert!(
+        stdout.contains("Commits:"),
+        "Expected Commits field, got: {stdout}"
+    );
 }
 
 #[test]
@@ -116,7 +144,14 @@ fn test_status_with_base_branch() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "status-base", "--base", "feature-base", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "status-base",
+            "--base",
+            "feature-base",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -134,6 +169,12 @@ fn test_status_with_base_branch() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Base branch:"), "Expected Base branch field, got: {stdout}");
-    assert!(stdout.contains("feature-base"), "Expected base branch name, got: {stdout}");
+    assert!(
+        stdout.contains("Base branch:"),
+        "Expected Base branch field, got: {stdout}"
+    );
+    assert!(
+        stdout.contains("feature-base"),
+        "Expected base branch name, got: {stdout}"
+    );
 }

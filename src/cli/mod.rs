@@ -291,7 +291,14 @@ mod tests {
 
     #[test]
     fn test_cli_parse_init_with_copy_files() {
-        let cli = Cli::try_parse_from(["wt", "init", "--copy-files", ".env", "--copy-files", ".env.*"]);
+        let cli = Cli::try_parse_from([
+            "wt",
+            "init",
+            "--copy-files",
+            ".env",
+            "--copy-files",
+            ".env.*",
+        ]);
         assert!(cli.is_ok());
     }
 

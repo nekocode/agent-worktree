@@ -46,7 +46,12 @@ fn test_rm_force_dirty_worktree() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "rm-dirty", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "rm-dirty",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()

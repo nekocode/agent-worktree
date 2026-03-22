@@ -39,7 +39,7 @@ pub enum SnapAction {
 pub struct SnapContext {
     pub cwd: PathBuf,
     pub branch: String,
-    pub merge_target: String,  // 实际 merge 目标（base_branch > trunk）
+    pub merge_target: String, // 实际 merge 目标（base_branch > trunk）
     pub repo_root: PathBuf,
     pub has_uncommitted: bool,
     pub has_commits_ahead: bool,
@@ -191,18 +191,21 @@ fn execute_action(
             eprintln!("Merging {} into {}...", ctx.branch, ctx.merge_target);
 
             // Switch to merge target in main repo
-            std::env::set_current_dir(&ctx.repo_root)
-                .map_err(|e| Error::Other(e.to_string()))?;
+            std::env::set_current_dir(&ctx.repo_root).map_err(|e| Error::Other(e.to_string()))?;
             git::checkout(&ctx.merge_target)?;
 
-            if let Err(e) = super::super::merge::execute_merge(&ctx.branch, &ctx.merge_target, config.merge_strategy) {
+            if let Err(e) = super::super::merge::execute_merge(
+                &ctx.branch,
+                &ctx.merge_target,
+                config.merge_strategy,
+            ) {
                 eprintln!("Merge conflict:\n{e}");
                 eprintln!();
-                // Clean up main repo: reset --merge covers both regular and squash conflicts
-                git::reset_merge().ok();
-                git::rebase_abort().ok();
-                git::checkout(&ctx.branch).ok();
-                std::env::set_current_dir(&ctx.cwd).ok();
+                // Clean up main repo: best-effort recovery, errors non-fatal to avoid cascade
+                let _ = git::reset_merge();
+                let _ = git::rebase_abort();
+                let _ = git::checkout(&ctx.branch);
+                let _ = std::env::set_current_dir(&ctx.cwd);
                 eprintln!("Worktree preserved. To merge manually:");
                 eprintln!("  wt merge");
                 std::process::exit(3);
@@ -261,24 +264,14 @@ mod tests {
     #[test]
     fn test_determine_only_commits_ahead_merge() {
         // No uncommitted but has commits ahead, user chooses merge
-        let action = determine_action_with_choice(
-            false,
-            true,
-            None,
-            Some(SnapMergeChoice::Merge),
-        );
+        let action = determine_action_with_choice(false, true, None, Some(SnapMergeChoice::Merge));
         assert_eq!(action, SnapAction::MergeAndCleanup);
     }
 
     #[test]
     fn test_determine_only_commits_ahead_exit() {
         // No uncommitted but has commits ahead, user chooses exit
-        let action = determine_action_with_choice(
-            false,
-            true,
-            None,
-            Some(SnapMergeChoice::Exit),
-        );
+        let action = determine_action_with_choice(false, true, None, Some(SnapMergeChoice::Exit));
         assert_eq!(action, SnapAction::ExitPreserve);
     }
 
@@ -309,5 +302,4 @@ mod tests {
         let action = determine_action_with_choice(true, false, None, None);
         assert_eq!(action, SnapAction::ExitPreserve);
     }
-
 }

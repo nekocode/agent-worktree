@@ -104,9 +104,10 @@ fn run_continue(main_repo: &Path, config: &Config, path_file: Option<&Path>) -> 
 
     if let Some(branch) = branch {
         cleanup_worktree(&branch, config)?;
+        eprintln!("Merge complete: {branch}.");
+    } else {
+        eprintln!("Merge complete.");
     }
-
-    eprintln!("Merge complete.");
     if path_file.is_some() {
         write_path_file(path_file, main_repo)?;
     }
@@ -139,9 +140,7 @@ fn run_merge(
     );
 
     if current == target {
-        return Err(Error::Other(format!(
-            "Cannot merge {current} into itself"
-        )));
+        return Err(Error::Other(format!("Cannot merge {current} into itself")));
     }
 
     if git::has_uncommitted_changes()? {
@@ -210,7 +209,7 @@ fn run_merge(
         cleanup_worktree(&current, config)?;
     }
 
-    eprintln!("Merge complete.");
+    eprintln!("Merge complete: {current} into {target}.");
 
     if path_file.is_some() && inside_worktree {
         write_path_file(path_file, main_repo)?;

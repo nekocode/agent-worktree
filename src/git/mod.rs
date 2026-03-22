@@ -2,15 +2,15 @@
 // git - Git Operations via CLI
 // ===========================================================================
 
-mod repo;
-mod worktree;
 mod branch;
 mod ops;
+mod repo;
+mod worktree;
 
-pub use repo::*;
-pub use worktree::*;
 pub use branch::*;
 pub use ops::*;
+pub use repo::*;
+pub use worktree::*;
 
 use std::path::Path;
 use std::process::Command;

@@ -35,8 +35,10 @@ const NOUNS: &[&str] = &[
 /// Generate a random branch name in "adjective-noun" format
 pub fn generate_branch_name() -> String {
     let mut rng = rand::rng();
-    let adj = ADJECTIVES.choose(&mut rng).unwrap();
-    let noun = NOUNS.choose(&mut rng).unwrap();
+    let adj = ADJECTIVES
+        .choose(&mut rng)
+        .expect("ADJECTIVES is non-empty");
+    let noun = NOUNS.choose(&mut rng).expect("NOUNS is non-empty");
     format!("{adj}-{noun}")
 }
 
@@ -85,7 +87,7 @@ mod tests {
 
     #[test]
     fn test_generate_unique_with_conflicts() {
-        let taken = vec!["swift-fox".to_string()];
+        let taken = ["swift-fox".to_string()];
         let name = generate_unique_branch_name(|n| taken.contains(&n.to_string()));
 
         // Should either be different or have suffix

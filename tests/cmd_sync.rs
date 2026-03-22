@@ -74,7 +74,12 @@ fn test_sync_on_feature_branch() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "sync-feature", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "sync-feature",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -105,7 +110,12 @@ fn test_sync_on_feature_with_updates() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "sync-updates", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "sync-updates",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -148,7 +158,12 @@ fn test_sync_from_nonexistent_branch_fails() {
 
     let path_file = create_path_file(repo.parent().unwrap());
     let output = Command::new(wt_binary())
-        .args(["new", "sync-from-test", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "sync-from-test",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -202,7 +217,12 @@ fn test_sync_from_specific_branch() {
     // Create worktree
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "sync-from-src", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "sync-from-src",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()

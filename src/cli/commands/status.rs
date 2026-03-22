@@ -35,10 +35,14 @@ pub fn run(config: &Config) -> Result<()> {
     let uncommitted = git::uncommitted_count_in(&wt_path).unwrap_or(0);
     let commits = git::commit_count(&effective_target, &current).unwrap_or(0);
 
-    let diff = git::diff_shortstat(&effective_target, &current)
-        .unwrap_or(git::DiffStat { insertions: 0, deletions: 0 });
-    let unstaged = git::diff_shortstat_in(&wt_path)
-        .unwrap_or(git::DiffStat { insertions: 0, deletions: 0 });
+    let diff = git::diff_shortstat(&effective_target, &current).unwrap_or(git::DiffStat {
+        insertions: 0,
+        deletions: 0,
+    });
+    let unstaged = git::diff_shortstat_in(&wt_path).unwrap_or(git::DiffStat {
+        insertions: 0,
+        deletions: 0,
+    });
 
     println!("Branch:       {current}");
 
@@ -50,7 +54,10 @@ pub fn run(config: &Config) -> Result<()> {
     println!("Merge target: {effective_target}");
 
     if let Some(ref m) = loaded {
-        println!("Created:      {}", m.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
+        println!(
+            "Created:      {}",
+            m.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+        );
         if let Some(ref cmd) = m.snap_command {
             println!("Snap command: {cmd}");
         }

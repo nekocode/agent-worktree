@@ -296,23 +296,13 @@ base_branch = "feature-x"
 
     #[test]
     fn test_resolve_cli_override_wins() {
-        let result = resolve_target_branch(
-            Some("release"),
-            Some("feature-a"),
-            |_| true,
-            "main",
-        );
+        let result = resolve_target_branch(Some("release"), Some("feature-a"), |_| true, "main");
         assert_eq!(result, "release");
     }
 
     #[test]
     fn test_resolve_base_branch_exists() {
-        let result = resolve_target_branch(
-            None,
-            Some("feature-a"),
-            |b| b == "feature-a",
-            "main",
-        );
+        let result = resolve_target_branch(None, Some("feature-a"), |b| b == "feature-a", "main");
         assert_eq!(result, "feature-a");
     }
 
@@ -329,12 +319,7 @@ base_branch = "feature-x"
 
     #[test]
     fn test_resolve_no_base_branch() {
-        let result = resolve_target_branch(
-            None,
-            None,
-            |_| true,
-            "main",
-        );
+        let result = resolve_target_branch(None, None, |_| true, "main");
         assert_eq!(result, "main");
     }
 
@@ -349,13 +334,8 @@ base_branch = "feature-x"
             .with_base_branch("feature-a".to_string());
         meta.save(&meta_path(dir.path(), "my-branch")).unwrap();
 
-        let result = resolve_effective_target(
-            dir.path(),
-            "my-branch",
-            None,
-            |b| b == "feature-a",
-            "main",
-        );
+        let result =
+            resolve_effective_target(dir.path(), "my-branch", None, |b| b == "feature-a", "main");
         assert_eq!(result, "feature-a");
     }
 
@@ -363,13 +343,7 @@ base_branch = "feature-x"
     fn test_effective_target_no_meta_falls_back_to_trunk() {
         let dir = tempdir().unwrap();
         // 没有 meta 文件 → fallback 到 trunk
-        let result = resolve_effective_target(
-            dir.path(),
-            "my-branch",
-            None,
-            |_| true,
-            "main",
-        );
+        let result = resolve_effective_target(dir.path(), "my-branch", None, |_| true, "main");
         assert_eq!(result, "main");
     }
 
@@ -380,13 +354,8 @@ base_branch = "feature-x"
             .with_base_branch("feature-a".to_string());
         meta.save(&meta_path(dir.path(), "my-branch")).unwrap();
 
-        let result = resolve_effective_target(
-            dir.path(),
-            "my-branch",
-            Some("release"),
-            |_| true,
-            "main",
-        );
+        let result =
+            resolve_effective_target(dir.path(), "my-branch", Some("release"), |_| true, "main");
         assert_eq!(result, "release");
     }
 }

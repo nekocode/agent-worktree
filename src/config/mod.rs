@@ -125,7 +125,9 @@ impl Config {
         let project = Self::load_project()?;
 
         // Merge: project overrides global
-        let merge_strategy = project.general.merge_strategy
+        let merge_strategy = project
+            .general
+            .merge_strategy
             .unwrap_or(global.general.merge_strategy);
         let mut copy_files = global.general.copy_files;
         copy_files.extend(project.general.copy_files);
@@ -319,10 +321,7 @@ merge_strategy = "merge"
 post_merge = ["git push", "notify-team"]
 "#;
         let config: GlobalConfig = toml::from_str(toml).unwrap();
-        assert_eq!(
-            config.hooks.post_merge,
-            vec!["git push", "notify-team"]
-        );
+        assert_eq!(config.hooks.post_merge, vec!["git push", "notify-team"]);
     }
 
     #[test]

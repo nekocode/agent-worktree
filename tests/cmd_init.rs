@@ -120,7 +120,10 @@ fn test_init_with_merge_strategy() {
     assert!(output.status.success());
 
     let content = std::fs::read_to_string(dir.path().join(".agent-worktree.toml")).unwrap();
-    assert!(content.contains("rebase"), "Expected rebase in config, got: {content}");
+    assert!(
+        content.contains("rebase"),
+        "Expected rebase in config, got: {content}"
+    );
 }
 
 #[test]
@@ -137,7 +140,10 @@ fn test_init_with_copy_files() {
     assert!(output.status.success());
 
     let content = std::fs::read_to_string(dir.path().join(".agent-worktree.toml")).unwrap();
-    assert!(content.contains(".env"), "Expected .env in config, got: {content}");
+    assert!(
+        content.contains(".env"),
+        "Expected .env in config, got: {content}"
+    );
 }
 
 #[test]
@@ -148,9 +154,12 @@ fn test_init_with_all_options() {
     let output = Command::new(wt_binary())
         .args([
             "init",
-            "--trunk", "develop",
-            "--merge-strategy", "squash",
-            "--copy-files", ".env",
+            "--trunk",
+            "develop",
+            "--merge-strategy",
+            "squash",
+            "--copy-files",
+            ".env",
         ])
         .current_dir(dir.path())
         .output()

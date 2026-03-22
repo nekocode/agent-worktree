@@ -45,7 +45,8 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
         b.clone()
     } else {
         // 默认使用当前分支，detached HEAD 时 fallback 到 trunk
-        git::current_branch().ok()
+        git::current_branch()
+            .ok()
             .filter(|b| b != "HEAD")
             .unwrap_or_else(|| trunk.clone())
     };
@@ -70,6 +71,8 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     // Create metadata
     // 仅当 base_branch ≠ trunk 时才持久化，避免冗余
     let mut meta = WorktreeMeta::new(base_commit, trunk.clone());
+    // with_base_branch 会 move base_branch，先保存用于日志输出
+    let base_display = base_branch.clone();
     if base_branch != trunk {
         meta = meta.with_base_branch(base_branch);
     }
@@ -107,7 +110,7 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     if path_file.is_some() {
         write_path_file(path_file, &wt_path)?;
     } else {
-        eprintln!("Created worktree: {branch}");
+        eprintln!("Created worktree: {branch} (from {base_display})");
         eprintln!("Path: {}", wt_path.display());
     }
 
@@ -130,9 +133,7 @@ fn copy_files(from: &Path, to: &Path, config: &Config) -> Result<()> {
             .add(pattern)
             .map_err(|e| Error::Other(format!("invalid pattern '{}': {}", pattern, e)))?;
     }
-    let overrides = builder
-        .build()
-        .map_err(|e| Error::Other(e.to_string()))?;
+    let overrides = builder.build().map_err(|e| Error::Other(e.to_string()))?;
 
     // Walk directory with overrides (only matching files)
     let walker = WalkBuilder::new(from)
@@ -146,7 +147,10 @@ fn copy_files(from: &Path, to: &Path, config: &Config) -> Result<()> {
             let rel = match path.strip_prefix(from) {
                 Ok(r) => r,
                 Err(e) => {
-                    eprintln!("Warning: failed to strip prefix for {}: {e}", path.display());
+                    eprintln!(
+                        "Warning: failed to strip prefix for {}: {e}",
+                        path.display()
+                    );
                     continue;
                 }
             };
@@ -154,7 +158,10 @@ fn copy_files(from: &Path, to: &Path, config: &Config) -> Result<()> {
 
             if let Some(parent) = dest.parent() {
                 if let Err(e) = std::fs::create_dir_all(parent) {
-                    eprintln!("Warning: failed to create directory {}: {e}", parent.display());
+                    eprintln!(
+                        "Warning: failed to create directory {}: {e}",
+                        parent.display()
+                    );
                     continue;
                 }
             }

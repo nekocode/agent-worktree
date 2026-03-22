@@ -15,7 +15,10 @@ pub fn create_worktree(path: &Path, branch: &str, base: &str) -> Result<()> {
     if super::branch_exists(branch)? {
         // Branch exists - check if it already has a worktree
         let worktrees = list_worktrees()?;
-        if worktrees.iter().any(|wt| wt.branch.as_deref() == Some(branch)) {
+        if worktrees
+            .iter()
+            .any(|wt| wt.branch.as_deref() == Some(branch))
+        {
             return Err(Error::WorktreeExists(branch.to_string()));
         }
 

@@ -46,7 +46,10 @@ pub fn repo_root() -> Result<PathBuf> {
         current.to_path_buf()
     };
 
-    git_dir.parent().map(|p| p.to_path_buf()).ok_or(Error::NotInRepo)
+    git_dir
+        .parent()
+        .map(|p| p.to_path_buf())
+        .ok_or(Error::NotInRepo)
 }
 
 /// Get the name of the current repository (directory name)

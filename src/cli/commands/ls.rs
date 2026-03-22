@@ -72,10 +72,14 @@ pub fn run(args: LsArgs, config: &Config) -> Result<()> {
         let uncommitted = git::uncommitted_count_in(&wt.path).unwrap_or(0);
         let commits = git::commit_count(&effective_target, branch).unwrap_or(0);
 
-        let c = git::diff_shortstat(&effective_target, branch)
-            .unwrap_or(git::DiffStat { insertions: 0, deletions: 0 });
-        let u = git::diff_shortstat_in(&wt.path)
-            .unwrap_or(git::DiffStat { insertions: 0, deletions: 0 });
+        let c = git::diff_shortstat(&effective_target, branch).unwrap_or(git::DiffStat {
+            insertions: 0,
+            deletions: 0,
+        });
+        let u = git::diff_shortstat_in(&wt.path).unwrap_or(git::DiffStat {
+            insertions: 0,
+            deletions: 0,
+        });
 
         let path = if args.long {
             Some(shorten_path(&wt.path, &home))
@@ -116,7 +120,12 @@ struct Row {
 }
 
 fn print_table(rows: &[Row]) {
-    let bw = rows.iter().map(|r| r.branch.len()).max().unwrap_or(6).max(6);
+    let bw = rows
+        .iter()
+        .map(|r| r.branch.len())
+        .max()
+        .unwrap_or(6)
+        .max(6);
     let show_path = rows.iter().any(|r| r.path.is_some());
     let show_base = rows.iter().any(|r| r.base_branch.is_some());
 
@@ -135,13 +144,23 @@ fn print_table(rows: &[Row]) {
     if show_base {
         header.push_str(&format!("   {:<sw$}", "BASE", sw = sw));
     }
-    header.push_str(&format!("   {:>8}   {:>7}   {:>10}", "UNCOMMIT", "COMMITS", "DIFF"));
+    header.push_str(&format!(
+        "   {:>8}   {:>7}   {:>10}",
+        "UNCOMMIT", "COMMITS", "DIFF"
+    ));
     if show_path {
         header.push_str("   PATH");
     }
     println!("{header}");
 
-    let sep_len = 2 + bw + 3 + 8 + 3 + 7 + 3 + 10
+    let sep_len = 2
+        + bw
+        + 3
+        + 8
+        + 3
+        + 7
+        + 3
+        + 10
         + if show_base { 3 + sw } else { 0 }
         + if show_path { 40 } else { 0 };
     println!("{}", "-".repeat(sep_len));
@@ -160,7 +179,10 @@ fn print_table(rows: &[Row]) {
             let src = row.base_branch.as_deref().unwrap_or("-");
             line.push_str(&format!("   {:<sw$}", src, sw = sw));
         }
-        line.push_str(&format!("   {:>8}   {:>7}   {:>10}", row.uncommitted, row.commits, diff));
+        line.push_str(&format!(
+            "   {:>8}   {:>7}   {:>10}",
+            row.uncommitted, row.commits, diff
+        ));
 
         if let Some(ref path) = row.path {
             println!("{line}   {path}");

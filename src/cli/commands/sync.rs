@@ -81,9 +81,7 @@ pub fn run(args: SyncArgs, config: &Config) -> Result<()> {
     };
 
     if current == target {
-        return Err(Error::Other(format!(
-            "Cannot sync {current} with itself"
-        )));
+        return Err(Error::Other(format!("Cannot sync {current} with itself")));
     }
 
     let strategy = args.strategy.unwrap_or_default();

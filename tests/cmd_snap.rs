@@ -100,5 +100,8 @@ fn test_snap_continue_not_in_worktree() {
         .output()
         .expect("wt snap-continue failed");
 
-    assert!(!output.status.success(), "snap-continue should fail outside worktree");
+    assert!(
+        !output.status.success(),
+        "snap-continue should fail outside worktree"
+    );
 }

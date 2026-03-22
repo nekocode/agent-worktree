@@ -16,7 +16,12 @@ fn test_new_with_branch_name() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "test-feature", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "test-feature",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(dir.path())
         .output()
         .expect("Failed to execute wt new");
@@ -111,7 +116,12 @@ fn test_worktree_lifecycle_new_ls_rm() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "feature-test", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "feature-test",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -131,10 +141,7 @@ fn test_worktree_lifecycle_new_ls_rm() {
 
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-            stdout.contains("feature-test")
-                || stderr.contains("feature-test")
-        );
+        assert!(stdout.contains("feature-test") || stderr.contains("feature-test"));
 
         let output = Command::new(wt_binary())
             .args(["rm", "feature-test", "--force"])
@@ -153,7 +160,12 @@ fn test_full_worktree_lifecycle() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "feature-lifecycle", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "feature-lifecycle",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()

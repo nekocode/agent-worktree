@@ -18,7 +18,11 @@ pub enum Error {
 
 /// Run a command in the specified directory, inheriting stdio.
 pub fn run_interactive(command: &str, cwd: &Path) -> Result<ExitStatus> {
-    let (shell, flag) = if cfg!(windows) { ("cmd", "/C") } else { ("sh", "-c") };
+    let (shell, flag) = if cfg!(windows) {
+        ("cmd", "/C")
+    } else {
+        ("sh", "-c")
+    };
     let status = Command::new(shell)
         .args([flag, command])
         .current_dir(cwd)
@@ -43,8 +47,9 @@ pub fn run_hook(command: &str, cwd: &Path) -> Result<()> {
 /// Run multiple hooks in sequence
 pub fn run_hooks(hooks: &[String], cwd: &Path) -> Result<()> {
     for hook in hooks {
-        eprintln!("Running hook: {hook}");
+        eprintln!("Running hook: {hook}...");
         run_hook(hook, cwd)?;
+        eprintln!("Hook done: {hook}");
     }
     Ok(())
 }

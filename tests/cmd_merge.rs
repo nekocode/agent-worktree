@@ -68,7 +68,12 @@ fn test_merge_from_feature_branch() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "merge-feature", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "merge-feature",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -111,7 +116,12 @@ fn test_merge_with_changes() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "merge-changes", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "merge-changes",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -154,7 +164,12 @@ fn test_merge_conflict_shows_error() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["new", "merge-conflict", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "merge-conflict",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -217,7 +232,12 @@ fn test_merge_into_nonexistent_branch_fails() {
 
     let path_file = create_path_file(repo.parent().unwrap());
     let output = Command::new(wt_binary())
-        .args(["new", "merge-into-test", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "merge-into-test",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()

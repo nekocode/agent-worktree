@@ -48,8 +48,8 @@ pub fn run(args: RmArgs, config: &Config, path_file: Option<&Path>) -> Result<()
     // Switch to main repo before deleting branch (avoid "not in repo" error)
     std::env::set_current_dir(&main_path).ok();
 
-    // Delete branch
-    git::delete_branch(&branch, args.force).ok();
+    // Delete branch — best-effort, failure doesn't block worktree cleanup
+    let _ = git::delete_branch(&branch, args.force);
 
     // Remove metadata
     crate::meta::remove_meta(&wt_dir, &branch);

@@ -58,7 +58,12 @@ fn test_cd_to_existing_worktree() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["cd", "cd-target", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "cd",
+            "cd-target",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -76,7 +81,12 @@ fn test_cd_returns_correct_path() {
 
     let path_file = create_path_file(dir.path());
     let new_output = Command::new(wt_binary())
-        .args(["new", "cd-check", "--path-file", path_file.to_str().unwrap()])
+        .args([
+            "new",
+            "cd-check",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()
@@ -92,7 +102,12 @@ fn test_cd_returns_correct_path() {
 
     let cd_path_file = dir.path().join(".wt-cd-path");
     let output = Command::new(wt_binary())
-        .args(["cd", "cd-check", "--path-file", cd_path_file.to_str().unwrap()])
+        .args([
+            "cd",
+            "cd-check",
+            "--path-file",
+            cd_path_file.to_str().unwrap(),
+        ])
         .current_dir(&repo)
         .env("HOME", &home)
         .output()

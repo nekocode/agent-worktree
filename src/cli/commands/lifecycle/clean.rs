@@ -97,7 +97,11 @@ pub fn run(args: CleanArgs, config: &Config, path_file: Option<&Path>) -> Result
         }
     }
 
-    let verb = if args.dry_run { "would be cleaned" } else { "cleaned" };
+    let verb = if args.dry_run {
+        "would be cleaned"
+    } else {
+        "cleaned"
+    };
 
     if checked == 0 {
         eprintln!("No worktrees to clean.");

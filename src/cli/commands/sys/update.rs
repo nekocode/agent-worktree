@@ -19,7 +19,9 @@ pub fn determine_action(check_result: update::Result<Option<String>>) -> cli::Re
     match check_result {
         Ok(Some(latest)) => Ok(UpdateAction::UpdateAvailable(latest)),
         Ok(None) => Ok(UpdateAction::AlreadyUpToDate),
-        Err(e) => Err(cli::Error::Other(format!("failed to check for updates: {e}"))),
+        Err(e) => Err(cli::Error::Other(format!(
+            "failed to check for updates: {e}"
+        ))),
     }
 }
 
@@ -79,7 +81,10 @@ mod tests {
     fn test_determine_action_network_error() {
         let result = determine_action(Err(update::Error::Network("timeout".into())));
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("failed to check for updates"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("failed to check for updates"));
     }
 
     #[test]

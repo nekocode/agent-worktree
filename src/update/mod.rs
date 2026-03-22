@@ -45,11 +45,7 @@ pub fn mark_checked(base_dir: &Path) -> Result<()> {
 
 /// Compare versions: returns true if latest > current
 pub fn compare_versions(current: &str, latest: &str) -> bool {
-    let parse = |v: &str| -> Vec<u32> {
-        v.split('.')
-            .filter_map(|s| s.parse().ok())
-            .collect()
-    };
+    let parse = |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse().ok()).collect() };
 
     let current_parts = parse(current);
     let latest_parts = parse(latest);
@@ -91,8 +87,7 @@ pub fn check_update(current_version: &str) -> Result<Option<String>> {
     struct NpmPackage {
         version: String,
     }
-    let pkg: NpmPackage =
-        serde_json::from_str(&body).map_err(|e| Error::Parse(e.to_string()))?;
+    let pkg: NpmPackage = serde_json::from_str(&body).map_err(|e| Error::Parse(e.to_string()))?;
 
     if compare_versions(current_version, &pkg.version) {
         Ok(Some(pkg.version))

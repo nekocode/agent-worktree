@@ -5,15 +5,17 @@
 use std::path::Path;
 
 use clap::Args;
+use clap_complete::engine::ArgValueCompleter;
 
 use crate::cli::{Error, Result};
+use crate::complete;
 use crate::config::{MergeStrategy, ProjectConfig};
 use crate::git;
 
 #[derive(Args)]
 pub struct InitArgs {
     /// Main branch name (auto-detected: main > master)
-    #[arg(long, value_name = "BRANCH")]
+    #[arg(long, value_name = "BRANCH", add = ArgValueCompleter::new(complete::complete_branches))]
     trunk: Option<String>,
 
     /// Default merge strategy

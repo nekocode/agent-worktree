@@ -5,8 +5,10 @@
 use std::path::Path;
 
 use clap::Args;
+use clap_complete::engine::ArgValueCompleter;
 
 use crate::cli::{write_path_file, write_path_file_lines, Error, Result};
+use crate::complete;
 use crate::config::Config;
 use crate::git;
 use crate::meta::{self, WorktreeMeta};
@@ -19,7 +21,7 @@ pub struct NewArgs {
     branch: Option<String>,
 
     /// Base branch to create from and merge back to (default: current branch)
-    #[arg(long, value_name = "BRANCH")]
+    #[arg(long, value_name = "BRANCH", add = ArgValueCompleter::new(complete::complete_branches))]
     base: Option<String>,
 
     /// Run command in snap mode: create -> run -> merge -> cleanup

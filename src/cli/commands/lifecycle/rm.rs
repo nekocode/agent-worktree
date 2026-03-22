@@ -5,14 +5,17 @@
 use std::path::Path;
 
 use clap::Args;
+use clap_complete::engine::ArgValueCompleter;
 
 use crate::cli::{write_path_file, Error, Result};
+use crate::complete;
 use crate::config::Config;
 use crate::git;
 
 #[derive(Args)]
 pub struct RmArgs {
     /// Branch name to remove (use '.' for current worktree)
+    #[arg(add = ArgValueCompleter::new(complete::complete_worktrees))]
     branch: String,
 
     /// Force removal even with uncommitted changes

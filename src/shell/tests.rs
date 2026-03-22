@@ -414,3 +414,48 @@ fn test_shell_debug() {
     let debug = format!("{:?}", shell);
     assert_eq!(debug, "Bash");
 }
+
+// =========================================================================
+// Completion init snippet tests
+// =========================================================================
+#[test]
+fn test_bash_zsh_wrapper_contains_completion_init() {
+    let wrapper = Shell::Bash.wrapper_script();
+    assert!(
+        wrapper.contains("COMPLETE="),
+        "bash/zsh wrapper should contain COMPLETE env var for dynamic completions"
+    );
+    assert!(
+        wrapper.contains("_wt_bin"),
+        "bash/zsh wrapper should locate binary for completions"
+    );
+}
+
+#[test]
+fn test_powershell_wrapper_contains_completion_init() {
+    let wrapper = Shell::PowerShell.wrapper_script();
+    assert!(
+        wrapper.contains("COMPLETE"),
+        "powershell wrapper should contain COMPLETE env var for completions"
+    );
+}
+
+#[test]
+fn test_fish_completions_content() {
+    assert!(
+        FISH_COMPLETIONS.contains("COMPLETE=fish"),
+        "fish completions should set COMPLETE=fish"
+    );
+    assert!(
+        FISH_COMPLETIONS.contains("source"),
+        "fish completions should source the output"
+    );
+}
+
+#[test]
+fn test_fish_completions_path() {
+    let path = fish_completions_path();
+    assert!(path.is_ok());
+    let path = path.unwrap();
+    assert!(path.to_string_lossy().contains("completions/wt.fish"));
+}

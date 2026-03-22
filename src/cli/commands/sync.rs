@@ -3,8 +3,10 @@
 // ===========================================================================
 
 use clap::Args;
+use clap_complete::engine::ArgValueCompleter;
 
 use crate::cli::{Error, Result};
+use crate::complete;
 use crate::config::{Config, SyncStrategy};
 use crate::git;
 use crate::meta;
@@ -16,7 +18,7 @@ pub struct SyncArgs {
     strategy: Option<SyncStrategy>,
 
     /// Source branch to sync from (default: base branch or trunk)
-    #[arg(long, value_name = "BRANCH")]
+    #[arg(long, value_name = "BRANCH", add = ArgValueCompleter::new(complete::complete_branches))]
     from: Option<String>,
 
     /// Continue sync after resolving conflicts

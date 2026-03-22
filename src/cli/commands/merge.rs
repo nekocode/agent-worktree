@@ -5,8 +5,10 @@
 use std::path::{Path, PathBuf};
 
 use clap::Args;
+use clap_complete::engine::ArgValueCompleter;
 
 use crate::cli::{write_path_file, Error, Result};
+use crate::complete;
 use crate::config::{Config, MergeStrategy};
 use crate::git;
 use crate::meta;
@@ -50,7 +52,7 @@ pub struct MergeArgs {
     strategy: Option<MergeStrategy>,
 
     /// Target branch to merge into (default: trunk)
-    #[arg(long, value_name = "BRANCH")]
+    #[arg(long, value_name = "BRANCH", add = ArgValueCompleter::new(complete::complete_branches))]
     into: Option<String>,
 
     /// Keep worktree after merge (don't cleanup)

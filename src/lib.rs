@@ -3,6 +3,7 @@
 // ===========================================================================
 
 pub mod cli;
+pub mod complete;
 pub mod config;
 pub mod git;
 pub mod meta;

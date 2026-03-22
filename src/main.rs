@@ -7,6 +7,9 @@ use std::thread::JoinHandle;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn main() {
+    // Must be first: intercepts COMPLETE env var for shell completions
+    clap_complete::env::CompleteEnv::with_factory(agent_worktree::cli::build_command).complete();
+
     // Check for updates (once per day), runs in background
     let base_dir = Config::base_dir().ok();
     let update_handle = base_dir.as_ref().and_then(|dir| {

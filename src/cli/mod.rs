@@ -6,7 +6,7 @@ mod commands;
 
 use std::path::Path;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 
 use crate::config::Config;
 
@@ -105,6 +105,11 @@ enum Command {
     /// Continue snap mode after agent exits (internal use)
     #[command(hide = true)]
     SnapContinue,
+}
+
+/// Build clap Command for CompleteEnv (completion generation)
+pub fn build_command() -> clap::Command {
+    Cli::command()
 }
 
 impl Cli {

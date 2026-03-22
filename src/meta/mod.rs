@@ -57,6 +57,9 @@ pub struct WorktreeMeta {
 
     #[serde(default)]
     pub snap_command: Option<String>,
+
+    #[serde(default)]
+    pub base_branch: Option<String>,
 }
 
 impl WorktreeMeta {
@@ -66,11 +69,17 @@ impl WorktreeMeta {
             base_commit,
             trunk,
             snap_command: None,
+            base_branch: None,
         }
     }
 
     pub fn with_snap(mut self, command: String) -> Self {
         self.snap_command = Some(command);
+        self
+    }
+
+    pub fn with_base_branch(mut self, branch: String) -> Self {
+        self.base_branch = Some(branch);
         self
     }
 
@@ -86,6 +95,46 @@ impl WorktreeMeta {
         std::fs::write(path, content)?;
         Ok(())
     }
+}
+
+// ---------------------------------------------------------------------------
+// 目标分支解析 — CLI 覆盖 > base_branch（若存在） > trunk
+// ---------------------------------------------------------------------------
+
+/// 从 meta 文件解析 merge/sync 目标（封装常见的 load → extract → resolve 流程）
+///
+/// 优先级: cli_override > meta.base_branch (if exists) > trunk
+pub fn resolve_effective_target(
+    wt_dir: &Path,
+    branch: &str,
+    cli_override: Option<&str>,
+    branch_exists: impl Fn(&str) -> bool,
+    trunk: &str,
+) -> String {
+    let meta_path = meta_path_with_fallback(wt_dir, branch);
+    let loaded = WorktreeMeta::load(&meta_path).ok();
+    let base = loaded.as_ref().and_then(|m| m.base_branch.as_deref());
+    resolve_target_branch(cli_override, base, branch_exists, trunk)
+}
+
+/// 解析 merge/sync 的目标分支（纯逻辑，无 I/O）
+///
+/// 优先级: cli_override > base_branch (if branch still exists) > trunk
+pub fn resolve_target_branch(
+    cli_override: Option<&str>,
+    base_branch: Option<&str>,
+    branch_exists: impl Fn(&str) -> bool,
+    trunk: &str,
+) -> String {
+    if let Some(target) = cli_override {
+        return target.to_string();
+    }
+    if let Some(bb) = base_branch {
+        if branch_exists(bb) {
+            return bb.to_string();
+        }
+    }
+    trunk.to_string()
 }
 
 #[cfg(test)]
@@ -191,5 +240,153 @@ snap_command = "claude --model opus"
 
         assert!(!new.exists());
         assert!(!legacy.exists());
+    }
+
+    // -----------------------------------------------------------------------
+    // base_branch 字段
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_with_base_branch() {
+        let meta = WorktreeMeta::new("abc".to_string(), "main".to_string())
+            .with_base_branch("feature-a".to_string());
+        assert_eq!(meta.base_branch, Some("feature-a".to_string()));
+    }
+
+    #[test]
+    fn test_parse_toml_without_base_branch() {
+        // 旧格式 TOML 缺少 base_branch → 反序列化为 None（向前兼容）
+        let toml = r#"
+created_at = "2024-01-15T10:30:00Z"
+base_commit = "abc1234"
+trunk = "main"
+"#;
+        let meta: WorktreeMeta = toml::from_str(toml).unwrap();
+        assert!(meta.base_branch.is_none());
+    }
+
+    #[test]
+    fn test_parse_toml_with_base_branch() {
+        let toml = r#"
+created_at = "2024-01-15T10:30:00Z"
+base_commit = "abc1234"
+trunk = "main"
+base_branch = "feature-x"
+"#;
+        let meta: WorktreeMeta = toml::from_str(toml).unwrap();
+        assert_eq!(meta.base_branch, Some("feature-x".to_string()));
+    }
+
+    #[test]
+    fn test_base_branch_roundtrip() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("test.toml");
+
+        let meta = WorktreeMeta::new("abc".to_string(), "main".to_string())
+            .with_base_branch("dev".to_string());
+        meta.save(&path).unwrap();
+
+        let loaded = WorktreeMeta::load(&path).unwrap();
+        assert_eq!(loaded.base_branch, Some("dev".to_string()));
+    }
+
+    // -----------------------------------------------------------------------
+    // resolve_target_branch
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_resolve_cli_override_wins() {
+        let result = resolve_target_branch(
+            Some("release"),
+            Some("feature-a"),
+            |_| true,
+            "main",
+        );
+        assert_eq!(result, "release");
+    }
+
+    #[test]
+    fn test_resolve_base_branch_exists() {
+        let result = resolve_target_branch(
+            None,
+            Some("feature-a"),
+            |b| b == "feature-a",
+            "main",
+        );
+        assert_eq!(result, "feature-a");
+    }
+
+    #[test]
+    fn test_resolve_base_branch_deleted() {
+        let result = resolve_target_branch(
+            None,
+            Some("feature-a"),
+            |_| false, // branch 已删除
+            "main",
+        );
+        assert_eq!(result, "main");
+    }
+
+    #[test]
+    fn test_resolve_no_base_branch() {
+        let result = resolve_target_branch(
+            None,
+            None,
+            |_| true,
+            "main",
+        );
+        assert_eq!(result, "main");
+    }
+
+    // -----------------------------------------------------------------------
+    // resolve_effective_target
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_effective_target_reads_meta() {
+        let dir = tempdir().unwrap();
+        let meta = WorktreeMeta::new("abc".to_string(), "main".to_string())
+            .with_base_branch("feature-a".to_string());
+        meta.save(&meta_path(dir.path(), "my-branch")).unwrap();
+
+        let result = resolve_effective_target(
+            dir.path(),
+            "my-branch",
+            None,
+            |b| b == "feature-a",
+            "main",
+        );
+        assert_eq!(result, "feature-a");
+    }
+
+    #[test]
+    fn test_effective_target_no_meta_falls_back_to_trunk() {
+        let dir = tempdir().unwrap();
+        // 没有 meta 文件 → fallback 到 trunk
+        let result = resolve_effective_target(
+            dir.path(),
+            "my-branch",
+            None,
+            |_| true,
+            "main",
+        );
+        assert_eq!(result, "main");
+    }
+
+    #[test]
+    fn test_effective_target_cli_override_wins() {
+        let dir = tempdir().unwrap();
+        let meta = WorktreeMeta::new("abc".to_string(), "main".to_string())
+            .with_base_branch("feature-a".to_string());
+        meta.save(&meta_path(dir.path(), "my-branch")).unwrap();
+
+        let result = resolve_effective_target(
+            dir.path(),
+            "my-branch",
+            Some("release"),
+            |_| true,
+            "main",
+        );
+        assert_eq!(result, "release");
     }
 }

@@ -210,3 +210,33 @@ fn test_merge_conflict_shows_error() {
         "Expected recovery instructions in stderr, got: {stderr}"
     );
 }
+
+#[test]
+fn test_merge_into_nonexistent_branch_fails() {
+    let (_dir, repo, home) = setup_worktree_test_env();
+
+    let path_file = create_path_file(repo.parent().unwrap());
+    let output = Command::new(wt_binary())
+        .args(["new", "merge-into-test", "--path-file", path_file.to_str().unwrap()])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new failed");
+    assert!(output.status.success());
+
+    let wt_path = PathBuf::from(read_path_file(&path_file).trim());
+
+    let output = Command::new(wt_binary())
+        .args(["merge", "--into", "nonexistent-branch-xyz"])
+        .current_dir(&wt_path)
+        .env("HOME", &home)
+        .output()
+        .expect("wt merge --into failed");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("does not exist"),
+        "Expected 'does not exist' error, got: {stderr}"
+    );
+}

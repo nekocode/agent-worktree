@@ -105,3 +105,61 @@ fn test_init_multiple_options() {
     let content = std::fs::read_to_string(dir.path().join(".agent-worktree.toml")).unwrap();
     assert!(content.contains("master"));
 }
+
+#[test]
+fn test_init_with_merge_strategy() {
+    let dir = tempdir().unwrap();
+    setup_git_repo(dir.path());
+
+    let output = Command::new(wt_binary())
+        .args(["init", "--merge-strategy", "rebase"])
+        .current_dir(dir.path())
+        .output()
+        .expect("wt init failed");
+
+    assert!(output.status.success());
+
+    let content = std::fs::read_to_string(dir.path().join(".agent-worktree.toml")).unwrap();
+    assert!(content.contains("rebase"), "Expected rebase in config, got: {content}");
+}
+
+#[test]
+fn test_init_with_copy_files() {
+    let dir = tempdir().unwrap();
+    setup_git_repo(dir.path());
+
+    let output = Command::new(wt_binary())
+        .args(["init", "--copy-files", ".env", "--copy-files", ".env.*"])
+        .current_dir(dir.path())
+        .output()
+        .expect("wt init failed");
+
+    assert!(output.status.success());
+
+    let content = std::fs::read_to_string(dir.path().join(".agent-worktree.toml")).unwrap();
+    assert!(content.contains(".env"), "Expected .env in config, got: {content}");
+}
+
+#[test]
+fn test_init_with_all_options() {
+    let dir = tempdir().unwrap();
+    setup_git_repo(dir.path());
+
+    let output = Command::new(wt_binary())
+        .args([
+            "init",
+            "--trunk", "develop",
+            "--merge-strategy", "squash",
+            "--copy-files", ".env",
+        ])
+        .current_dir(dir.path())
+        .output()
+        .expect("wt init failed");
+
+    assert!(output.status.success());
+
+    let content = std::fs::read_to_string(dir.path().join(".agent-worktree.toml")).unwrap();
+    assert!(content.contains("develop"));
+    assert!(content.contains("squash"));
+    assert!(content.contains(".env"));
+}

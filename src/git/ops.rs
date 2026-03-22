@@ -89,12 +89,12 @@ fn git_dir() -> Option<std::path::PathBuf> {
 
 /// Check if a rebase is in progress
 pub fn is_rebase_in_progress() -> bool {
-    git_dir().map_or(false, |d| {
+    git_dir().is_some_and(|d| {
         d.join("rebase-merge").exists() || d.join("rebase-apply").exists()
     })
 }
 
 /// Check if a merge is in progress
 pub fn is_merge_in_progress() -> bool {
-    git_dir().map_or(false, |d| d.join("MERGE_HEAD").exists())
+    git_dir().is_some_and(|d| d.join("MERGE_HEAD").exists())
 }

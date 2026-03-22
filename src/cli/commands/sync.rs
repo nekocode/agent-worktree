@@ -2,17 +2,22 @@
 // wt sync - Sync current worktree with trunk
 // ===========================================================================
 
-use clap::{Args, ValueEnum};
+use clap::Args;
 
 use crate::cli::{Error, Result};
 use crate::config::{Config, SyncStrategy};
 use crate::git;
+use crate::meta;
 
 #[derive(Args)]
 pub struct SyncArgs {
     /// Sync strategy (default: rebase)
     #[arg(short, long, value_enum)]
-    strategy: Option<SyncStrategyArg>,
+    strategy: Option<SyncStrategy>,
+
+    /// Source branch to sync from (default: base branch or trunk)
+    #[arg(long, value_name = "BRANCH")]
+    from: Option<String>,
 
     /// Continue sync after resolving conflicts
     #[arg(long)]
@@ -21,21 +26,6 @@ pub struct SyncArgs {
     /// Abort sync and restore previous state
     #[arg(long)]
     abort: bool,
-}
-
-#[derive(Clone, Copy, ValueEnum)]
-enum SyncStrategyArg {
-    Rebase,
-    Merge,
-}
-
-impl From<SyncStrategyArg> for SyncStrategy {
-    fn from(arg: SyncStrategyArg) -> Self {
-        match arg {
-            SyncStrategyArg::Rebase => SyncStrategy::Rebase,
-            SyncStrategyArg::Merge => SyncStrategy::Merge,
-        }
-    }
 }
 
 pub fn run(args: SyncArgs, config: &Config) -> Result<()> {
@@ -70,24 +60,44 @@ pub fn run(args: SyncArgs, config: &Config) -> Result<()> {
     }
 
     let current = git::current_branch()?;
-    let trunk = config.resolve_trunk();
 
-    if current == trunk {
-        return Err(Error::Other("Already on trunk branch".into()));
+    // --from 指定的分支必须存在
+    if let Some(ref branch) = args.from {
+        if !git::branch_exists(branch)? {
+            return Err(Error::Other(format!("Branch '{branch}' does not exist")));
+        }
     }
 
-    let strategy = args.strategy.map(SyncStrategy::from).unwrap_or_default();
+    let target = {
+        let workspace_id = git::workspace_id()?;
+        let wt_dir = config.workspaces_dir.join(&workspace_id);
+        meta::resolve_effective_target(
+            &wt_dir,
+            &current,
+            args.from.as_deref(),
+            |b| git::branch_exists(b).unwrap_or(false),
+            &config.resolve_trunk(),
+        )
+    };
 
-    eprintln!("Syncing {current} with {trunk} ({strategy:?})...");
+    if current == target {
+        return Err(Error::Other(format!(
+            "Cannot sync {current} with itself"
+        )));
+    }
+
+    let strategy = args.strategy.unwrap_or_default();
+
+    eprintln!("Syncing {current} with {target} ({strategy:?})...");
 
     match strategy {
         SyncStrategy::Rebase => {
-            git::rebase(&trunk)?;
-            eprintln!("Rebased onto {trunk}");
+            git::rebase(&target)?;
+            eprintln!("Rebased onto {target}");
         }
         SyncStrategy::Merge => {
-            git::merge(&trunk, false, false, None)?;
-            eprintln!("Merged {trunk} into {current}");
+            git::merge(&target, false, false, None)?;
+            eprintln!("Merged {target} into {current}");
         }
     }
 

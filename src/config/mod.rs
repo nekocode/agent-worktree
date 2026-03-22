@@ -81,7 +81,7 @@ pub struct HooksConfig {
     pub post_merge: Vec<String>,
 }
 
-#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum MergeStrategy {
     #[default]
@@ -90,7 +90,7 @@ pub enum MergeStrategy {
     Rebase,
 }
 
-#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum SyncStrategy {
     #[default]

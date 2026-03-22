@@ -39,7 +39,7 @@ pub enum SnapAction {
 pub struct SnapContext {
     pub cwd: PathBuf,
     pub branch: String,
-    pub trunk: String,
+    pub merge_target: String,  // 实际 merge 目标（base_branch > trunk）
     pub repo_root: PathBuf,
     pub has_uncommitted: bool,
     pub has_commits_ahead: bool,
@@ -71,19 +71,27 @@ pub fn gather_context(config: &Config) -> Result<SnapContext> {
     let wt_dir = config.workspaces_dir.join(&workspace_id);
     let meta_path = meta::meta_path_with_fallback(&wt_dir, &branch);
 
-    let meta = WorktreeMeta::load(&meta_path).ok();
-    let trunk = meta
+    let loaded_meta = WorktreeMeta::load(&meta_path).ok();
+    let trunk = loaded_meta
         .as_ref()
         .map(|m| m.trunk.clone())
         .unwrap_or_else(|| config.resolve_trunk());
 
+    let base_branch = loaded_meta.as_ref().and_then(|m| m.base_branch.as_deref());
+    let merge_target = meta::resolve_target_branch(
+        None,
+        base_branch,
+        |b| git::branch_exists(b).unwrap_or(false),
+        &trunk,
+    );
+
     let has_uncommitted = git::has_uncommitted_changes().unwrap_or(false);
-    let has_commits_ahead = git::commit_count(&trunk, "HEAD").unwrap_or(0) > 0;
+    let has_commits_ahead = git::commit_count(&merge_target, "HEAD").unwrap_or(0) > 0;
 
     Ok(SnapContext {
         cwd,
         branch,
-        trunk,
+        merge_target,
         repo_root,
         has_uncommitted,
         has_commits_ahead,
@@ -180,14 +188,14 @@ fn execute_action(
                     .map_err(|e| Error::Other(e.to_string()))?;
             }
 
-            eprintln!("Merging {} into {}...", ctx.branch, ctx.trunk);
+            eprintln!("Merging {} into {}...", ctx.branch, ctx.merge_target);
 
-            // Switch to trunk in main repo
+            // Switch to merge target in main repo
             std::env::set_current_dir(&ctx.repo_root)
                 .map_err(|e| Error::Other(e.to_string()))?;
-            git::checkout(&ctx.trunk)?;
+            git::checkout(&ctx.merge_target)?;
 
-            if let Err(e) = super::super::merge::execute_merge(&ctx.branch, &ctx.trunk, config.merge_strategy) {
+            if let Err(e) = super::super::merge::execute_merge(&ctx.branch, &ctx.merge_target, config.merge_strategy) {
                 eprintln!("Merge conflict:\n{e}");
                 eprintln!();
                 // Clean up main repo: reset --merge covers both regular and squash conflicts
@@ -200,7 +208,7 @@ fn execute_action(
                 std::process::exit(3);
             }
 
-            eprintln!("Merged {} into {}", ctx.branch, ctx.trunk);
+            eprintln!("Merged {} into {}", ctx.branch, ctx.merge_target);
 
             // Run post-merge hooks
             if !config.hooks.post_merge.is_empty() {

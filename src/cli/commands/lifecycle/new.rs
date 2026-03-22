@@ -18,8 +18,8 @@ pub struct NewArgs {
     /// Branch name (random name like 'swift-fox' if not provided)
     branch: Option<String>,
 
-    /// Base commit or branch to create from (default: trunk)
-    #[arg(long, value_name = "REF")]
+    /// Base branch to create from and merge back to (default: current branch)
+    #[arg(long, value_name = "BRANCH")]
     base: Option<String>,
 
     /// Run command in snap mode: create -> run -> merge -> cleanup
@@ -35,8 +35,20 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     // Determine trunk branch
     let trunk = config.resolve_trunk();
 
-    // Determine base
-    let base = args.base.as_deref().unwrap_or(&trunk);
+    // Resolve base branch: --base flag > current branch > trunk
+    // base_branch 决定了 checkout 起点和 merge/sync 的默认目标
+    let base_branch = if let Some(ref b) = args.base {
+        // --base 必须是已存在的分支
+        if !git::branch_exists(b)? {
+            return Err(Error::Other(format!("Branch '{b}' does not exist")));
+        }
+        b.clone()
+    } else {
+        // 默认使用当前分支，detached HEAD 时 fallback 到 trunk
+        git::current_branch().ok()
+            .filter(|b| b != "HEAD")
+            .unwrap_or_else(|| trunk.clone())
+    };
 
     // Generate or use provided branch name
     let branch = args.branch.unwrap_or_else(|| {
@@ -50,14 +62,17 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     // Create workspace directory if needed
     std::fs::create_dir_all(&wt_dir).map_err(|e| Error::Other(e.to_string()))?;
 
-    // Create worktree
-    git::create_worktree(&wt_path, &branch, base)?;
+    git::create_worktree(&wt_path, &branch, &base_branch)?;
 
     // Get base commit for metadata
     let base_commit = git::current_commit().unwrap_or_default();
 
     // Create metadata
+    // 仅当 base_branch ≠ trunk 时才持久化，避免冗余
     let mut meta = WorktreeMeta::new(base_commit, trunk.clone());
+    if base_branch != trunk {
+        meta = meta.with_base_branch(base_branch);
+    }
     if let Some(ref cmd) = args.snap {
         meta = meta.with_snap(cmd.clone());
     }

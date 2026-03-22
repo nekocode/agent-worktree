@@ -44,14 +44,14 @@ wt new feature-x
 
 # ... develop, commit ...
 
-# Merge back to trunk and cleanup
+# Merge back and cleanup (merges to the branch you were on when creating)
 wt merge
 ```
 
 Other useful commands:
 
 ```bash
-wt ls              # List all worktrees
+wt ls              # List all worktrees (with BASE branch info)
 wt cd feature-y    # Switch to another worktree
 wt main            # Return to main repository
 ```
@@ -73,7 +73,7 @@ When the agent exits normally:
 - **No changes**: Worktree cleaned up automatically
 - **Only commits** (nothing uncommitted):
   ```
-  [m] Merge into trunk
+  [m] Merge into base branch
   [q] Exit snap mode
   ```
 - **Uncommitted changes**:
@@ -88,8 +88,8 @@ When the agent exits normally:
 
 | Command | Description |
 |---------|-------------|
-| `wt new [branch]` | Create worktree (random name if omitted) |
-| `wt new --base <ref>` | Create from specific commit/branch |
+| `wt new [branch]` | Create worktree from current branch (random name if omitted) |
+| `wt new --base <branch>` | Create from specific base branch (default: current branch) |
 | `wt new -s <cmd>` | Create + snap mode |
 | `wt cd <branch>` | Switch to worktree |
 | `wt ls` | List worktrees |
@@ -103,13 +103,13 @@ When the agent exits normally:
 
 | Command | Description |
 |---------|-------------|
-| `wt merge` | Merge current worktree to trunk |
+| `wt merge` | Merge to base branch (falls back to trunk) |
 | `wt merge -s <strategy>` | Merge with strategy (squash/merge/rebase) |
-| `wt merge --into <branch>` | Merge to specific branch |
+| `wt merge --into <branch>` | Merge to specific branch (overrides base) |
 | `wt merge -k` | Keep worktree after merge |
 | `wt merge --continue` | Continue after resolving conflicts |
 | `wt merge --abort` | Abort merge |
-| `wt sync` | Sync updates from trunk (rebase) |
+| `wt sync` | Sync from base branch (falls back to trunk) |
 | `wt sync -s merge` | Sync with merge strategy |
 | `wt sync --continue` | Continue after resolving conflicts |
 | `wt sync --abort` | Abort sync |

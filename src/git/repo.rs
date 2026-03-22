@@ -113,6 +113,23 @@ pub fn detect_trunk() -> Result<String> {
     Ok("main".to_string())
 }
 
+/// List all local branch names (one subprocess instead of N branch_exists calls)
+pub fn local_branches() -> Result<Vec<String>> {
+    let output = Command::new("git")
+        .args(["for-each-ref", "--format=%(refname:short)", "refs/heads/"])
+        .output()?;
+
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(|l| l.to_string())
+        .collect())
+}
+
 /// Check if a branch exists
 pub fn branch_exists(name: &str) -> Result<bool> {
     let output = Command::new("git")

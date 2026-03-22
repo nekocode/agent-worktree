@@ -23,7 +23,7 @@ fn test_sync_on_trunk_fails() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("trunk") || stderr.contains("Already"));
+    assert!(stderr.contains("Cannot sync") || stderr.contains("itself"));
 }
 
 #[test]
@@ -140,4 +140,86 @@ fn test_sync_on_feature_with_updates() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "sync failed: {}", stderr);
+}
+
+#[test]
+fn test_sync_from_nonexistent_branch_fails() {
+    let (_dir, repo, home) = setup_worktree_test_env();
+
+    let path_file = create_path_file(repo.parent().unwrap());
+    let output = Command::new(wt_binary())
+        .args(["new", "sync-from-test", "--path-file", path_file.to_str().unwrap()])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new failed");
+    assert!(output.status.success());
+
+    let wt_path = PathBuf::from(read_path_file(&path_file).trim());
+
+    let output = Command::new(wt_binary())
+        .args(["sync", "--from", "nonexistent-branch-xyz"])
+        .current_dir(&wt_path)
+        .env("HOME", &home)
+        .output()
+        .expect("wt sync --from failed");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("does not exist"),
+        "Expected 'does not exist' error, got: {stderr}"
+    );
+}
+
+#[test]
+fn test_sync_from_specific_branch() {
+    let (dir, repo, home) = setup_worktree_test_env();
+
+    // Create a source branch with a commit
+    Command::new("git")
+        .args(["checkout", "-b", "source-branch"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    std::fs::write(repo.join("source.txt"), "from source").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "Source commit"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["checkout", "main"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+
+    // Create worktree
+    let path_file = create_path_file(dir.path());
+    let output = Command::new(wt_binary())
+        .args(["new", "sync-from-src", "--path-file", path_file.to_str().unwrap()])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new failed");
+    assert!(output.status.success());
+
+    let wt_path = PathBuf::from(read_path_file(&path_file).trim());
+
+    // Sync from source-branch instead of trunk
+    let output = Command::new(wt_binary())
+        .args(["sync", "--from", "source-branch", "--strategy", "merge"])
+        .current_dir(&wt_path)
+        .env("HOME", &home)
+        .output()
+        .expect("wt sync --from failed");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "sync --from failed: {stderr}");
+    assert!(stderr.contains("source-branch"));
 }

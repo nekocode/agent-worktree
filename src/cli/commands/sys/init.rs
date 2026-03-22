@@ -7,7 +7,7 @@ use std::path::Path;
 use clap::Args;
 
 use crate::cli::{Error, Result};
-use crate::config::ProjectConfig;
+use crate::config::{MergeStrategy, ProjectConfig};
 use crate::git;
 
 #[derive(Args)]
@@ -15,6 +15,14 @@ pub struct InitArgs {
     /// Main branch name (auto-detected: main > master)
     #[arg(long, value_name = "BRANCH")]
     trunk: Option<String>,
+
+    /// Default merge strategy
+    #[arg(long, value_enum, value_name = "STRATEGY")]
+    merge_strategy: Option<MergeStrategy>,
+
+    /// Files to copy from main repo to new worktrees (can be repeated)
+    #[arg(long, value_name = "PATTERN")]
+    copy_files: Vec<String>,
 }
 
 pub fn run(args: InitArgs) -> Result<()> {
@@ -32,6 +40,10 @@ pub fn run(args: InitArgs) -> Result<()> {
 
     let mut config = ProjectConfig::default();
     config.general.trunk = Some(trunk.clone());
+    config.general.merge_strategy = args.merge_strategy;
+    if !args.copy_files.is_empty() {
+        config.general.copy_files = args.copy_files;
+    }
 
     let content = toml::to_string_pretty(&config).map_err(|e| Error::Other(e.to_string()))?;
 
@@ -39,6 +51,12 @@ pub fn run(args: InitArgs) -> Result<()> {
 
     eprintln!("Created .agent-worktree.toml");
     eprintln!("Trunk branch: {trunk}");
+    if let Some(ref strategy) = config.general.merge_strategy {
+        eprintln!("Merge strategy: {strategy:?}");
+    }
+    if !config.general.copy_files.is_empty() {
+        eprintln!("Copy files: {}", config.general.copy_files.join(", "));
+    }
 
     Ok(())
 }

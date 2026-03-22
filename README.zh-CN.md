@@ -44,14 +44,14 @@ wt new feature-x
 
 # ... 开发、提交 ...
 
-# 合并回 trunk 并清理
+# 合并并清理（默认 merge 回创建时所在的分支）
 wt merge
 ```
 
 其他常用命令：
 
 ```bash
-wt ls              # 列出所有 worktree
+wt ls              # 列出所有 worktree（含 BASE 分支信息）
 wt cd feature-y    # 切换到另一个 worktree
 wt main            # 返回主仓库
 ```
@@ -73,7 +73,7 @@ Agent 正常退出时：
 - **无改动**：自动清理 worktree
 - **只有 commits**（无未提交更改）：
   ```
-  [m] 合并到 trunk
+  [m] 合并到 base 分支
   [q] 退出 snap mode
   ```
 - **有未提交更改**：
@@ -88,8 +88,8 @@ Agent 正常退出时：
 
 | 命令 | 描述 |
 |------|------|
-| `wt new [branch]` | 创建 worktree（省略则随机命名） |
-| `wt new --base <ref>` | 基于指定 commit/分支创建 |
+| `wt new [branch]` | 从当前分支创建 worktree（省略则随机命名） |
+| `wt new --base <branch>` | 指定 base 分支（默认为当前分支） |
 | `wt new -s <cmd>` | 创建 + snap 模式 |
 | `wt cd <branch>` | 切换到 worktree |
 | `wt ls` | 列出 worktree |
@@ -103,13 +103,13 @@ Agent 正常退出时：
 
 | 命令 | 描述 |
 |------|------|
-| `wt merge` | 合并当前 worktree 到 trunk |
+| `wt merge` | 合并到 base 分支（fallback trunk） |
 | `wt merge -s <strategy>` | 指定合并策略（squash/merge/rebase） |
-| `wt merge --into <branch>` | 合并到指定分支 |
+| `wt merge --into <branch>` | 合并到指定分支（覆盖 base） |
 | `wt merge -k` | 合并后保留 worktree |
 | `wt merge --continue` | 解决冲突后继续 |
 | `wt merge --abort` | 放弃合并 |
-| `wt sync` | 从 trunk 同步更新（rebase） |
+| `wt sync` | 从 base 分支同步更新（fallback trunk） |
 | `wt sync -s merge` | 使用 merge 策略同步 |
 | `wt sync --continue` | 解决冲突后继续 |
 | `wt sync --abort` | 放弃同步 |

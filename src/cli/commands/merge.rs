@@ -4,11 +4,12 @@
 
 use std::path::{Path, PathBuf};
 
-use clap::{Args, ValueEnum};
+use clap::Args;
 
 use crate::cli::{write_path_file, Error, Result};
 use crate::config::{Config, MergeStrategy};
 use crate::git;
+use crate::meta;
 use crate::process;
 
 // ---------------------------------------------------------------------------
@@ -46,7 +47,7 @@ fn clear_merge_state() {
 pub struct MergeArgs {
     /// Merge strategy (default: squash)
     #[arg(short, long, value_enum)]
-    strategy: Option<MergeStrategyArg>,
+    strategy: Option<MergeStrategy>,
 
     /// Target branch to merge into (default: trunk)
     #[arg(long, value_name = "BRANCH")]
@@ -67,23 +68,6 @@ pub struct MergeArgs {
     /// Skip pre-merge hooks
     #[arg(short = 'H', long)]
     skip_hooks: bool,
-}
-
-#[derive(Clone, Copy, ValueEnum)]
-enum MergeStrategyArg {
-    Squash,
-    Merge,
-    Rebase,
-}
-
-impl From<MergeStrategyArg> for MergeStrategy {
-    fn from(arg: MergeStrategyArg) -> Self {
-        match arg {
-            MergeStrategyArg::Squash => MergeStrategy::Squash,
-            MergeStrategyArg::Merge => MergeStrategy::Merge,
-            MergeStrategyArg::Rebase => MergeStrategy::Rebase,
-        }
-    }
 }
 
 pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
@@ -136,10 +120,28 @@ fn run_merge(
     main_repo: &Path,
 ) -> Result<()> {
     let current = git::current_branch()?;
-    let trunk = args.into.unwrap_or_else(|| config.resolve_trunk());
+    let workspace_id = git::workspace_id()?;
+    let wt_dir = config.workspaces_dir.join(&workspace_id);
 
-    if current == trunk {
-        return Err(Error::Other("Cannot merge trunk into itself".into()));
+    // --into 指定的分支必须存在
+    if let Some(ref branch) = args.into {
+        if !git::branch_exists(branch)? {
+            return Err(Error::Other(format!("Branch '{branch}' does not exist")));
+        }
+    }
+
+    let target = meta::resolve_effective_target(
+        &wt_dir,
+        &current,
+        args.into.as_deref(),
+        |b| git::branch_exists(b).unwrap_or(false),
+        &config.resolve_trunk(),
+    );
+
+    if current == target {
+        return Err(Error::Other(format!(
+            "Cannot merge {current} into itself"
+        )));
     }
 
     if git::has_uncommitted_changes()? {
@@ -148,14 +150,10 @@ fn run_merge(
         ));
     }
 
-    let workspace_id = git::workspace_id()?;
-    let wt_path = config.workspaces_dir.join(&workspace_id).join(&current);
+    let wt_path = wt_dir.join(&current);
     let inside_worktree = git::is_cwd_inside(&wt_path);
 
-    let strategy = args
-        .strategy
-        .map(MergeStrategy::from)
-        .unwrap_or(config.merge_strategy);
+    let strategy = args.strategy.unwrap_or(config.merge_strategy);
 
     if !args.skip_hooks && !config.hooks.pre_merge.is_empty() {
         let cwd = std::env::current_dir().map_err(|e| Error::Other(e.to_string()))?;
@@ -164,8 +162,8 @@ fn run_merge(
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
-    let commit_count = git::commit_count(&trunk, &current).unwrap_or(0);
-    eprintln!("Merging {current} into {trunk} ({commit_count} commits, {strategy:?})");
+    let commit_count = git::commit_count(&target, &current).unwrap_or(0);
+    eprintln!("Merging {current} into {target} ({commit_count} commits, {strategy:?})");
 
     std::env::set_current_dir(main_repo).map_err(|e| Error::Other(e.to_string()))?;
 
@@ -178,11 +176,11 @@ fn run_merge(
         ));
     }
 
-    git::checkout(&trunk)?;
+    git::checkout(&target)?;
 
-    match execute_merge(&current, &trunk, strategy) {
+    match execute_merge(&current, &target, strategy) {
         Ok(false) => {
-            eprintln!("Nothing to merge: {current} is already up to date with {trunk}");
+            eprintln!("Nothing to merge: {current} is already up to date with {target}");
         }
         Err(e) => {
             save_merge_state(&current)?;

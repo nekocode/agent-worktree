@@ -79,10 +79,13 @@ enum Command {
     Rm(commands::RmArgs),
 
     /// Remove worktrees with no diff from trunk
-    Clean,
+    Clean(commands::CleanArgs),
 
     /// Merge current worktree into trunk
     Merge(commands::MergeArgs),
+
+    /// Show current worktree information
+    Status,
 
     /// Sync current worktree from trunk
     Sync(commands::SyncArgs),
@@ -115,8 +118,9 @@ impl Cli {
             Command::Cd(args) => commands::nav::cd::run(args, &config, path_file),
             Command::Main => commands::nav::main_cmd::run(&config, path_file),
             Command::Rm(args) => commands::lifecycle::rm::run(args, &config, path_file),
-            Command::Clean => commands::lifecycle::clean::run(&config, path_file),
+            Command::Clean(args) => commands::lifecycle::clean::run(args, &config, path_file),
             Command::Merge(args) => commands::merge::run(args, &config, path_file),
+            Command::Status => commands::status::run(&config),
             Command::Sync(args) => commands::sync::run(args, &config),
             Command::Mv(args) => commands::r#move::run(args, &config, path_file),
             Command::Setup(args) => commands::sys::setup::run(args),
@@ -214,6 +218,12 @@ mod tests {
     }
 
     #[test]
+    fn test_cli_parse_clean_dry_run() {
+        let cli = Cli::try_parse_from(["wt", "clean", "--dry-run"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
     fn test_cli_parse_merge() {
         let cli = Cli::try_parse_from(["wt", "merge"]);
         assert!(cli.is_ok());
@@ -226,8 +236,20 @@ mod tests {
     }
 
     #[test]
+    fn test_cli_parse_status() {
+        let cli = Cli::try_parse_from(["wt", "status"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
     fn test_cli_parse_sync() {
         let cli = Cli::try_parse_from(["wt", "sync"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_sync_from() {
+        let cli = Cli::try_parse_from(["wt", "sync", "--from", "develop"]);
         assert!(cli.is_ok());
     }
 
@@ -258,6 +280,18 @@ mod tests {
     #[test]
     fn test_cli_parse_init_with_trunk() {
         let cli = Cli::try_parse_from(["wt", "init", "--trunk", "develop"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_init_with_merge_strategy() {
+        let cli = Cli::try_parse_from(["wt", "init", "--merge-strategy", "rebase"]);
+        assert!(cli.is_ok());
+    }
+
+    #[test]
+    fn test_cli_parse_init_with_copy_files() {
+        let cli = Cli::try_parse_from(["wt", "init", "--copy-files", ".env", "--copy-files", ".env.*"]);
         assert!(cli.is_ok());
     }
 

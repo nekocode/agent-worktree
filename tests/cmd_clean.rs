@@ -106,8 +106,47 @@ fn test_clean_remvs_merged_worktree() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         output.status.success()
-            || stderr.contains("Cleaned")
+            || stderr.contains("cleaned")
             || stderr.contains("No")
             || stderr.contains("merged")
     );
+}
+
+#[test]
+fn test_clean_dry_run() {
+    let (_dir, repo, home) = setup_worktree_test_env();
+
+    // Create a worktree with no changes (will match trunk)
+    let output = Command::new(wt_binary())
+        .args(["new", "clean-dry"])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new failed");
+    assert!(output.status.success());
+
+    // dry-run should not remove anything
+    let output = Command::new(wt_binary())
+        .args(["clean", "--dry-run"])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt clean --dry-run failed");
+
+    assert!(output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Worktree should still exist after dry-run
+    let ls_output = Command::new(wt_binary())
+        .arg("ls")
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt ls failed");
+    let stdout = String::from_utf8_lossy(&ls_output.stdout);
+
+    // If worktree had no diff, dry-run would show "Would clean" but worktree survives
+    if stderr.contains("Would clean") {
+        assert!(stdout.contains("clean-dry"));
+    }
 }

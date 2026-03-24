@@ -44,8 +44,9 @@ wt new feature-x
 
 # ... develop, commit ...
 
-# Merge back and cleanup (merges to the branch you were on when creating)
-wt merge
+# Merge back (merges to the branch you were on when creating)
+wt merge            # keeps worktree
+wt merge -d         # deletes worktree after merge
 ```
 
 Other useful commands:
@@ -106,7 +107,7 @@ When the agent exits normally:
 | `wt merge` | Merge to base branch (falls back to trunk) |
 | `wt merge -s <strategy>` | Merge with strategy (squash/merge/rebase) |
 | `wt merge --into <branch>` | Merge to specific branch (overrides base) |
-| `wt merge -k` | Keep worktree after merge |
+| `wt merge -d` | Delete worktree after merge (default: keep) |
 | `wt merge --continue` | Continue after resolving conflicts |
 | `wt merge --abort` | Abort merge |
 | `wt sync` | Sync from base branch (falls back to trunk) |

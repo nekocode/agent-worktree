@@ -44,8 +44,9 @@ wt new feature-x
 
 # ... 开发、提交 ...
 
-# 合并并清理（默认 merge 回创建时所在的分支）
-wt merge
+# 合并（默认 merge 回创建时所在的分支）
+wt merge            # 保留 worktree
+wt merge -d         # 合并后删除 worktree
 ```
 
 其他常用命令：
@@ -106,7 +107,7 @@ Agent 正常退出时：
 | `wt merge` | 合并到 base 分支（fallback trunk） |
 | `wt merge -s <strategy>` | 指定合并策略（squash/merge/rebase） |
 | `wt merge --into <branch>` | 合并到指定分支（覆盖 base） |
-| `wt merge -k` | 合并后保留 worktree |
+| `wt merge -d` | 合并后删除 worktree（默认保留） |
 | `wt merge --continue` | 解决冲突后继续 |
 | `wt merge --abort` | 放弃合并 |
 | `wt sync` | 从 base 分支同步更新（fallback trunk） |

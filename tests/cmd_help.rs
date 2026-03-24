@@ -47,7 +47,7 @@ fn test_merge_help() {
     assert!(stdout.contains("Merge"));
     assert!(stdout.contains("--strategy"));
     assert!(stdout.contains("--into"));
-    assert!(stdout.contains("--keep"));
+    assert!(stdout.contains("--delete"));
 }
 
 #[test]

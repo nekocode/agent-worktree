@@ -148,7 +148,7 @@ fn test_merge_with_changes() {
         .unwrap();
 
     let output = Command::new(wt_binary())
-        .args(["merge", "--keep"])
+        .args(["merge"])
         .current_dir(&wt_path)
         .env("HOME", &home)
         .output()
@@ -156,6 +156,60 @@ fn test_merge_with_changes() {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "merge failed: {}", stderr);
+    assert!(wt_path.exists(), "worktree should be preserved by default");
+}
+
+#[test]
+fn test_merge_delete_removes_worktree() {
+    let (dir, repo, home) = setup_worktree_test_env();
+
+    let path_file = create_path_file(dir.path());
+    let output = Command::new(wt_binary())
+        .args([
+            "new",
+            "merge-delete",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new failed");
+    assert!(
+        output.status.success(),
+        "Command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let wt_path = PathBuf::from(read_path_file(&path_file).trim());
+
+    std::fs::write(wt_path.join("feature.txt"), "delete test").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(&wt_path)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "Add feature for delete test"])
+        .current_dir(&wt_path)
+        .output()
+        .unwrap();
+
+    let output = Command::new(wt_binary())
+        .args(["merge", "--delete"])
+        .current_dir(&wt_path)
+        .env("HOME", &home)
+        .output()
+        .expect("wt merge --delete failed");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "merge --delete failed: {}", stderr);
+
+    // Worktree should be removed
+    assert!(
+        !wt_path.exists(),
+        "worktree should be deleted with --delete"
+    );
 }
 
 #[test]
@@ -208,7 +262,7 @@ fn test_merge_conflict_shows_error() {
         .unwrap();
 
     let output = Command::new(wt_binary())
-        .args(["merge", "--keep"])
+        .args(["merge"])
         .current_dir(&wt_path)
         .env("HOME", &home)
         .output()

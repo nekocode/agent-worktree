@@ -65,7 +65,7 @@ wt clean [--dry-run]         # 清理所有与 target 无差异的 worktree（ta
 wt merge [options]           # 合并当前 worktree（默认 merge 回 base branch，fallback trunk）
     -s, --strategy <squash|merge|rebase>  # 合并策略，默认 squash
     --into <branch>          # 合并到指定分支（覆盖 base branch / trunk，校验存在性）
-    -k, --keep               # 合并后保留 worktree
+    -d, --delete             # 合并后删除 worktree（默认保留）
     -H, --skip-hooks         # 跳过 pre-merge hook
     --continue               # 解决冲突后继续
     --abort                  # 放弃合并，恢复到冲突前状态
@@ -292,7 +292,7 @@ agent-worktree/
 │   │       │   ├── init.rs    # wt init [--trunk] [--merge-strategy] [--copy-files]
 │   │       │   ├── setup.rs   # wt setup [--shell]
 │   │       │   └── update.rs  # wt update
-│   │       ├── merge.rs       # wt merge [-s] [--into] [-k] [--continue] [--abort]
+│   │       ├── merge.rs       # wt merge [-s] [--into] [-d] [--continue] [--abort]
 │   │       ├── sync.rs        # wt sync [--strategy] [--from]
 │   │       ├── ls.rs          # wt ls [-l]（按 created_at 排序）
 │   │       ├── status.rs      # wt status（当前 worktree 详细信息）

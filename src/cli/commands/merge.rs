@@ -25,16 +25,27 @@ fn merge_state_path() -> Result<PathBuf> {
     Ok(root.join(".git").join(MERGE_BRANCH_FILE))
 }
 
-fn save_merge_state(branch: &str) -> Result<()> {
+fn save_merge_state(branch: &str, delete: bool) -> Result<()> {
     let path = merge_state_path()?;
-    std::fs::write(&path, branch).map_err(|e| Error::Other(e.to_string()))
+    let content = if delete {
+        format!("{branch}\ndelete")
+    } else {
+        branch.to_string()
+    };
+    std::fs::write(&path, content).map_err(|e| Error::Other(e.to_string()))
 }
 
-fn load_merge_state() -> Result<Option<String>> {
+/// Returns (branch, delete_flag)
+fn load_merge_state() -> Result<(Option<String>, bool)> {
     let path = merge_state_path()?;
     match std::fs::read_to_string(&path) {
-        Ok(s) => Ok(Some(s.trim().to_string())),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Ok(s) => {
+            let mut lines = s.lines();
+            let branch = lines.next().map(|l| l.trim().to_string()).filter(|l| !l.is_empty());
+            let delete = lines.next().map(|l| l.trim()) == Some("delete");
+            Ok((branch, delete))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok((None, false)),
         Err(e) => Err(Error::Other(e.to_string())),
     }
 }
@@ -55,9 +66,9 @@ pub struct MergeArgs {
     #[arg(long, value_name = "BRANCH", add = ArgValueCompleter::new(complete::complete_branches))]
     into: Option<String>,
 
-    /// Keep worktree after merge (don't cleanup)
-    #[arg(short = 'k', long)]
-    keep: bool,
+    /// Delete worktree after merge (default: keep)
+    #[arg(short = 'd', long)]
+    delete: bool,
 
     /// Continue merge after resolving conflicts
     #[arg(long)]
@@ -79,7 +90,7 @@ pub fn run(args: MergeArgs, config: &Config, path_file: Option<&Path>) -> Result
         return run_abort(&main_repo);
     }
     if args.r#continue {
-        return run_continue(&main_repo, config, path_file);
+        return run_continue(&main_repo, config, path_file, args.delete);
     }
     run_merge(args, config, path_file, &main_repo)
 }
@@ -92,8 +103,15 @@ fn run_abort(main_repo: &Path) -> Result<()> {
     Ok(())
 }
 
-fn run_continue(main_repo: &Path, config: &Config, path_file: Option<&Path>) -> Result<()> {
-    let branch = load_merge_state()?;
+fn run_continue(
+    main_repo: &Path,
+    config: &Config,
+    path_file: Option<&Path>,
+    delete_override: bool,
+) -> Result<()> {
+    let (branch, persisted_delete) = load_merge_state()?;
+    // CLI --delete on --continue OR persisted from original merge
+    let delete = delete_override || persisted_delete;
     std::env::set_current_dir(main_repo).map_err(|e| Error::Other(e.to_string()))?;
     continue_merge(branch.as_deref())?;
     clear_merge_state();
@@ -104,8 +122,10 @@ fn run_continue(main_repo: &Path, config: &Config, path_file: Option<&Path>) -> 
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
-    if let Some(branch) = branch {
-        cleanup_worktree(&branch, config)?;
+    if let Some(branch) = &branch {
+        if delete {
+            cleanup_worktree(branch, config)?;
+        }
         eprintln!("Merge complete: {branch}.");
     } else {
         eprintln!("Merge complete.");
@@ -184,7 +204,7 @@ fn run_merge(
             eprintln!("Nothing to merge: {current} is already up to date with {target}");
         }
         Err(e) => {
-            save_merge_state(&current)?;
+            save_merge_state(&current, args.delete)?;
             eprintln!("Merge conflict:\n{e}");
             eprintln!();
             eprintln!("Resolve conflicts, then:");
@@ -207,7 +227,7 @@ fn run_merge(
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
-    if !args.keep {
+    if args.delete {
         cleanup_worktree(&current, config)?;
     }
 
@@ -340,19 +360,15 @@ pub fn cleanup_worktree(branch: &str, config: &Config) -> Result<()> {
     let wt_dir = config.workspaces_dir.join(&workspace_id);
     let wt_path = wt_dir.join(branch);
 
-    if wt_path.exists() {
-        eprintln!("Cleaning up worktree: {branch}");
+    eprintln!("Cleaning up worktree: {branch}");
 
-        // Remove worktree
-        git::remove_worktree(&wt_path, false).ok();
+    git::remove_worktree(&wt_path, false).ok();
 
-        // Force delete branch: squash merge rewrites history so -d thinks
-        // the branch is "not fully merged" even though changes are in trunk
-        git::delete_branch(branch, true).ok();
+    // Force delete: squash merge rewrites history so -d thinks
+    // the branch is "not fully merged" even though changes are in trunk
+    git::delete_branch(branch, true).ok();
 
-        // Remove metadata
-        crate::meta::remove_meta(&wt_dir, branch);
-    }
+    crate::meta::remove_meta(&wt_dir, branch);
 
     Ok(())
 }

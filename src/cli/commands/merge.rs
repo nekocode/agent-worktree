@@ -111,9 +111,6 @@ fn run_merge(
     if !git::dry_run_merge(&current)? {
         git::checkout(&target).ok();
         print_conflict_hint();
-        if inside_worktree {
-            write_path_file(path_file, main_repo)?;
-        }
         return Err(Error::Other("Merge aborted due to conflicts".into()));
     }
 
@@ -122,9 +119,6 @@ fn run_merge(
             eprintln!(
                 "Nothing to merge: {current} is already up to date with {target}"
             );
-            if inside_worktree {
-                write_path_file(path_file, main_repo)?;
-            }
             return Ok(());
         }
         Err(e) => {
@@ -141,13 +135,12 @@ fn run_merge(
 
     if args.delete {
         cleanup_worktree(&current, config)?;
+        if inside_worktree {
+            write_path_file(path_file, main_repo)?;
+        }
     }
 
     eprintln!("Merge complete: {current} into {target}.");
-
-    if inside_worktree {
-        write_path_file(path_file, main_repo)?;
-    }
 
     Ok(())
 }

@@ -1,5 +1,5 @@
 // ===========================================================================
-// wt cd - Change to worktree directory (no args = return to main repo)
+// wt cd - Change to worktree directory
 // ===========================================================================
 
 use std::path::Path;
@@ -21,7 +21,6 @@ pub struct CdArgs {
 
 pub fn run(args: CdArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
     let Some(branch) = args.branch else {
-        // No branch specified → return to main repo root
         let repo_root = git::repo_root()?;
         if path_file.is_some() {
             write_path_file(path_file, &repo_root)?;

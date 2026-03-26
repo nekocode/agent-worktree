@@ -58,7 +58,14 @@ pub fn run(args: MoveArgs, config: &Config, path_file: Option<&Path>) -> Result<
     // Rename metadata file (find old with fallback, write new format)
     let old_meta = crate::meta::meta_path_with_fallback(&wt_dir, &old_branch);
     let new_meta = crate::meta::meta_path(&wt_dir, &args.new_branch);
-    std::fs::rename(old_meta, new_meta).ok();
+    if old_meta.exists() {
+        std::fs::rename(&old_meta, &new_meta).map_err(|e| {
+            Error::Other(format!(
+                "Failed to rename metadata {}: {e}",
+                old_meta.display()
+            ))
+        })?;
+    }
 
     eprintln!("Renamed {} -> {}", old_branch, args.new_branch);
 

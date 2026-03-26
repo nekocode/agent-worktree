@@ -76,5 +76,23 @@ pub fn run(config: &Config) -> Result<()> {
 
     println!("Path:         {}", wt_path.display());
 
+    // Show in-progress sync state (git-native only, no WT_MERGE_BRANCH)
+    print_in_progress_state();
+
     Ok(())
+}
+
+/// Detect and display sync in-progress state
+fn print_in_progress_state() {
+    if git::is_rebase_in_progress() {
+        println!();
+        println!("State:        REBASE IN PROGRESS (sync)");
+        println!("  Resolve conflicts, then: wt sync --continue");
+        println!("  Or abort: wt sync --abort");
+    } else if git::is_merge_in_progress() {
+        println!();
+        println!("State:        MERGE IN PROGRESS (sync)");
+        println!("  Resolve conflicts, then: wt sync --continue");
+        println!("  Or abort: wt sync --abort");
+    }
 }

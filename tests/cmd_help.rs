@@ -123,14 +123,14 @@ fn test_merge_strategy_squash() {
 }
 
 #[test]
-fn test_merge_strategy_rebase() {
+fn test_merge_strategy_merge() {
     let output = Command::new(wt_binary())
         .args(["merge", "--help"])
         .output()
         .expect("wt merge --help failed");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("rebase"));
+    assert!(stdout.contains("merge"));
 }
 
 #[test]

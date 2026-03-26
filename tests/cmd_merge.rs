@@ -26,41 +26,6 @@ fn test_merge_on_trunk_fails() {
     assert!(stderr.contains("trunk") || stderr.contains("itself"));
 }
 
-#[test]
-fn test_merge_abort_no_merge() {
-    let dir = tempdir().unwrap();
-    setup_git_repo(dir.path());
-
-    let output = Command::new(wt_binary())
-        .args(["merge", "--abort"])
-        .current_dir(dir.path())
-        .output()
-        .expect("Failed to execute wt merge --abort");
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("No merge") || stderr.contains("Abort") || !output.status.success());
-}
-
-#[test]
-fn test_merge_continue_no_merge() {
-    let dir = tempdir().unwrap();
-    setup_git_repo(dir.path());
-
-    Command::new("git")
-        .args(["checkout", "-b", "feature-merge"])
-        .current_dir(dir.path())
-        .output()
-        .unwrap();
-
-    let output = Command::new(wt_binary())
-        .args(["merge", "--continue"])
-        .current_dir(dir.path())
-        .output()
-        .expect("wt merge --continue failed");
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("No merge") || stderr.contains("error") || !output.status.success());
-}
 
 #[test]
 fn test_merge_from_feature_branch() {
@@ -213,7 +178,7 @@ fn test_merge_delete_removes_worktree() {
 }
 
 #[test]
-fn test_merge_conflict_shows_error() {
+fn test_merge_conflict_rejected() {
     let (dir, repo, home) = setup_worktree_test_env();
 
     let path_file = create_path_file(dir.path());
@@ -268,15 +233,19 @@ fn test_merge_conflict_shows_error() {
         .output()
         .expect("wt merge failed");
 
-    assert!(output.status.success());
+    // Merge should fail (non-zero exit) due to conflict precheck
+    assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("CONFLICT") || stderr.contains("conflict"),
-        "Expected conflict info in stderr, got: {stderr}"
+        stderr.contains("conflict") || stderr.contains("Sync first"),
+        "Expected conflict rejection message, got: {stderr}"
     );
+
+    // No WT_MERGE_BRANCH state file should exist
+    let state_path = repo.join(".git").join("WT_MERGE_BRANCH");
     assert!(
-        stderr.contains("--continue") && stderr.contains("--abort"),
-        "Expected recovery instructions in stderr, got: {stderr}"
+        !state_path.exists(),
+        "No merge state file should exist after precheck rejection"
     );
 }
 

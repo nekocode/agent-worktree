@@ -94,26 +94,35 @@ Agent 正常退出时：
 | `wt new -s <cmd>` | 创建 + snap 模式 |
 | `wt cd <branch>` | 切换到 worktree |
 | `wt ls` | 列出 worktree |
+| `wt ls -l` | 显示每个 worktree 的完整路径 |
 | `wt main` | 返回主仓库 |
 | `wt mv <old> <new>` | 重命名 worktree（`.` 表示当前） |
 | `wt rm <branch>` | 删除 worktree（`.` 表示当前） |
 | `wt rm -f <branch>` | 强制删除（含未提交更改） |
 | `wt clean` | 清理与 trunk 无差异的 worktree |
+| `wt clean --dry-run` | 预览将被清理的 worktree（不实际删除） |
 
 ### 工作流
 
 | 命令 | 描述 |
 |------|------|
-| `wt merge` | 合并到 base 分支（fallback trunk） |
-| `wt merge -s <strategy>` | 指定合并策略（squash/merge/rebase） |
+| `wt merge` | 合并到 base 分支（fallback trunk，默认 squash） |
+| `wt merge -s <strategy>` | 指定合并策略（squash/merge） |
 | `wt merge --into <branch>` | 合并到指定分支（覆盖 base） |
 | `wt merge -d` | 合并后删除 worktree（默认保留） |
-| `wt merge --continue` | 解决冲突后继续 |
-| `wt merge --abort` | 放弃合并 |
-| `wt sync` | 从 base 分支同步更新（fallback trunk） |
-| `wt sync -s merge` | 使用 merge 策略同步 |
+| `wt merge -H` | 跳过 pre-merge hooks |
+| `wt sync` | 从 base 分支同步更新（fallback trunk，默认 rebase） |
+| `wt sync -s <strategy>` | 指定同步策略（rebase/merge） |
+| `wt sync --from <branch>` | 从指定分支同步（覆盖 base） |
 | `wt sync --continue` | 解决冲突后继续 |
 | `wt sync --abort` | 放弃同步 |
+
+### 信息
+
+| 命令 | 描述 |
+|------|------|
+| `wt status` | 显示当前 worktree 信息 |
+| `wt update` | 更新到最新版本 |
 
 ### 配置
 
@@ -123,6 +132,8 @@ Agent 正常退出时：
 | `wt setup --shell zsh` | 为指定 shell 安装 |
 | `wt init` | 初始化项目配置 |
 | `wt init --trunk <branch>` | 初始化并指定 trunk 分支 |
+| `wt init --merge-strategy <strategy>` | 设置默认合并策略（squash/merge） |
+| `wt init --copy-files <pattern>` | 指定要复制到新 worktree 的文件（可重复） |
 
 ## 配置文件
 
@@ -130,7 +141,7 @@ Agent 正常退出时：
 
 ```toml
 [general]
-merge_strategy = "squash"  # squash | merge | rebase
+merge_strategy = "squash"  # squash | merge
 trunk = "main"  # trunk 分支（省略则自动检测）
 copy_files = [".env", ".env.*"]  # gitignore 风格的文件模式
 

@@ -23,6 +23,16 @@ pub fn merge(branch: &str, squash: bool, no_ff: bool, message: Option<&str>) -> 
     run(&args)
 }
 
+/// Dry-run merge to check for conflicts without leaving state.
+/// Returns Ok(true) if merge would be clean, Ok(false) if conflicts detected.
+pub fn dry_run_merge(branch: &str) -> Result<bool> {
+    let result = run(&["merge", "--no-commit", "--no-ff", branch]);
+    let clean = result.is_ok();
+    // Always abort to restore index/worktree, regardless of merge result
+    let _ = run(&["merge", "--abort"]);
+    Ok(clean)
+}
+
 /// Run git rebase
 pub fn rebase(onto: &str) -> Result<()> {
     run(&["rebase", onto])

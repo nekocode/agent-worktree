@@ -112,7 +112,7 @@ fn test_init_with_merge_strategy() {
     setup_git_repo(dir.path());
 
     let output = Command::new(wt_binary())
-        .args(["init", "--merge-strategy", "rebase"])
+        .args(["init", "--merge-strategy", "merge"])
         .current_dir(dir.path())
         .output()
         .expect("wt init failed");
@@ -121,8 +121,8 @@ fn test_init_with_merge_strategy() {
 
     let content = std::fs::read_to_string(dir.path().join(".agent-worktree.toml")).unwrap();
     assert!(
-        content.contains("rebase"),
-        "Expected rebase in config, got: {content}"
+        content.contains("merge"),
+        "Expected merge in config, got: {content}"
     );
 }
 

@@ -94,26 +94,35 @@ When the agent exits normally:
 | `wt new -s <cmd>` | Create + snap mode |
 | `wt cd <branch>` | Switch to worktree |
 | `wt ls` | List worktrees |
+| `wt ls -l` | Show full path for each worktree |
 | `wt main` | Return to main repository |
 | `wt mv <old> <new>` | Rename worktree (use `.` for current) |
 | `wt rm <branch>` | Remove worktree (use `.` for current) |
 | `wt rm -f <branch>` | Force remove with uncommitted changes |
 | `wt clean` | Remove worktrees with no diff from trunk |
+| `wt clean --dry-run` | Preview which worktrees would be cleaned |
 
 ### Workflow
 
 | Command | Description |
 |---------|-------------|
-| `wt merge` | Merge to base branch (falls back to trunk) |
-| `wt merge -s <strategy>` | Merge with strategy (squash/merge/rebase) |
+| `wt merge` | Merge to base branch (falls back to trunk, default: squash) |
+| `wt merge -s <strategy>` | Merge with strategy (squash/merge) |
 | `wt merge --into <branch>` | Merge to specific branch (overrides base) |
 | `wt merge -d` | Delete worktree after merge (default: keep) |
-| `wt merge --continue` | Continue after resolving conflicts |
-| `wt merge --abort` | Abort merge |
-| `wt sync` | Sync from base branch (falls back to trunk) |
-| `wt sync -s merge` | Sync with merge strategy |
+| `wt merge -H` | Skip pre-merge hooks |
+| `wt sync` | Sync from base branch (falls back to trunk, default: rebase) |
+| `wt sync -s <strategy>` | Sync with strategy (rebase/merge) |
+| `wt sync --from <branch>` | Sync from specific branch (overrides base) |
 | `wt sync --continue` | Continue after resolving conflicts |
 | `wt sync --abort` | Abort sync |
+
+### Info
+
+| Command | Description |
+|---------|-------------|
+| `wt status` | Show current worktree information |
+| `wt update` | Update to the latest version |
 
 ### Configuration
 
@@ -123,6 +132,8 @@ When the agent exits normally:
 | `wt setup --shell zsh` | Install for specific shell |
 | `wt init` | Initialize project config |
 | `wt init --trunk <branch>` | Initialize with specific trunk branch |
+| `wt init --merge-strategy <strategy>` | Set default merge strategy (squash/merge) |
+| `wt init --copy-files <pattern>` | Files to copy to new worktrees (repeatable) |
 
 ## Configuration
 
@@ -130,7 +141,7 @@ When the agent exits normally:
 
 ```toml
 [general]
-merge_strategy = "squash"  # squash | merge | rebase
+merge_strategy = "squash"  # squash | merge
 trunk = "main"  # Trunk branch (auto-detected if omitted)
 copy_files = [".env", ".env.*"]  # Gitignore-style patterns for files to copy
 

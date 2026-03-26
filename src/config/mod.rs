@@ -87,7 +87,6 @@ pub enum MergeStrategy {
     #[default]
     Squash,
     Merge,
-    Rebase,
 }
 
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, clap::ValueEnum)]
@@ -211,7 +210,7 @@ mod tests {
     fn test_global_config_parse() {
         let toml = r#"
 [general]
-merge_strategy = "rebase"
+merge_strategy = "merge"
 copy_files = ["*.secret"]
 
 [hooks]
@@ -219,7 +218,7 @@ post_create = ["npm install"]
 pre_merge = ["npm test"]
 "#;
         let config: GlobalConfig = toml::from_str(toml).unwrap();
-        assert_eq!(config.general.merge_strategy, MergeStrategy::Rebase);
+        assert_eq!(config.general.merge_strategy, MergeStrategy::Merge);
         assert_eq!(config.general.copy_files, vec!["*.secret"]);
         assert_eq!(config.hooks.post_create, vec!["npm install"]);
         assert_eq!(config.hooks.pre_merge, vec!["npm test"]);
@@ -265,12 +264,6 @@ merge_strategy = "squash"
 "#;
         let config: GlobalConfig = toml::from_str(toml_squash).unwrap();
         assert_eq!(config.general.merge_strategy, MergeStrategy::Squash);
-
-        let toml_rebase = r#"[general]
-merge_strategy = "rebase"
-"#;
-        let config: GlobalConfig = toml::from_str(toml_rebase).unwrap();
-        assert_eq!(config.general.merge_strategy, MergeStrategy::Rebase);
     }
 
     // =========================================================================
@@ -350,7 +343,7 @@ post_merge = ["git push", "notify-team"]
     fn test_global_config_serialize() {
         let config = GlobalConfig {
             general: GeneralConfig {
-                merge_strategy: MergeStrategy::Rebase,
+                merge_strategy: MergeStrategy::Merge,
                 copy_files: vec![".env".to_string()],
             },
             hooks: HooksConfig {
@@ -360,7 +353,7 @@ post_merge = ["git push", "notify-team"]
             },
         };
         let serialized = toml::to_string(&config).unwrap();
-        assert!(serialized.contains("rebase"));
+        assert!(serialized.contains("merge"));
         assert!(serialized.contains(".env"));
         assert!(serialized.contains("npm install"));
     }
@@ -369,10 +362,10 @@ post_merge = ["git push", "notify-team"]
     fn test_project_merge_strategy_override() {
         let toml = r#"
 [general]
-merge_strategy = "rebase"
+merge_strategy = "merge"
 "#;
         let config: ProjectConfig = toml::from_str(toml).unwrap();
-        assert_eq!(config.general.merge_strategy, Some(MergeStrategy::Rebase));
+        assert_eq!(config.general.merge_strategy, Some(MergeStrategy::Merge));
     }
 
     #[test]
@@ -419,7 +412,6 @@ trunk = "develop"
     fn test_merge_strategy_equality() {
         assert_eq!(MergeStrategy::Squash, MergeStrategy::Squash);
         assert_ne!(MergeStrategy::Squash, MergeStrategy::Merge);
-        assert_ne!(MergeStrategy::Merge, MergeStrategy::Rebase);
     }
 
     #[test]

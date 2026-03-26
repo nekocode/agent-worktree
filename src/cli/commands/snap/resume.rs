@@ -190,24 +190,29 @@ fn execute_action(
 
             eprintln!("Merging {} into {}...", ctx.branch, ctx.merge_target);
 
-            // Switch to merge target in main repo
-            std::env::set_current_dir(&ctx.repo_root).map_err(|e| Error::Other(e.to_string()))?;
+            std::env::set_current_dir(&ctx.repo_root)
+                .map_err(|e| Error::Other(e.to_string()))?;
             git::checkout(&ctx.merge_target)?;
+
+            if !git::dry_run_merge(&ctx.branch)? {
+                git::checkout(&ctx.merge_target).ok();
+                let _ = std::env::set_current_dir(&ctx.cwd);
+                super::super::merge::print_conflict_hint();
+                eprintln!();
+                eprintln!("Worktree preserved.");
+                std::process::exit(3);
+            }
 
             if let Err(e) = super::super::merge::execute_merge(
                 &ctx.branch,
                 &ctx.merge_target,
                 config.merge_strategy,
             ) {
-                eprintln!("Merge conflict:\n{e}");
-                eprintln!();
-                // Clean up main repo: best-effort recovery, errors non-fatal to avoid cascade
+                eprintln!("Merge failed: {e}");
                 let _ = git::reset_merge();
-                let _ = git::rebase_abort();
-                let _ = git::checkout(&ctx.branch);
+                let _ = git::checkout(&ctx.merge_target);
                 let _ = std::env::set_current_dir(&ctx.cwd);
-                eprintln!("Worktree preserved. To merge manually:");
-                eprintln!("  wt merge");
+                eprintln!("Worktree preserved.");
                 std::process::exit(3);
             }
 

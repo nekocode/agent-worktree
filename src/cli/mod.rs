@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_cli_parse_init_with_merge_strategy() {
-        let cli = Cli::try_parse_from(["wt", "init", "--merge-strategy", "rebase"]);
+        let cli = Cli::try_parse_from(["wt", "init", "--merge-strategy", "merge"]);
         assert!(cli.is_ok());
     }
 

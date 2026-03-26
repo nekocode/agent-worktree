@@ -50,7 +50,7 @@ pub enum Error {
     name = "wt",
     version,
     about = "Git worktree workflow tool for AI agents",
-    after_help = "Run 'wt setup' to install shell integration for cd/new/main commands."
+    after_help = "Run 'wt setup' to install shell integration for cd/new commands."
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -69,11 +69,8 @@ enum Command {
     /// List all worktrees for this project
     Ls(commands::LsArgs),
 
-    /// Switch to a worktree directory
+    /// Switch to a worktree directory (no args = return to main repo)
     Cd(commands::CdArgs),
-
-    /// Return to the main repository
-    Main,
 
     /// Remove a worktree and its branch
     Rm(commands::RmArgs),
@@ -121,7 +118,6 @@ impl Cli {
             Command::New(args) => commands::lifecycle::new::run(args, &config, path_file),
             Command::Ls(args) => commands::ls::run(args, &config),
             Command::Cd(args) => commands::nav::cd::run(args, &config, path_file),
-            Command::Main => commands::nav::main_cmd::run(&config, path_file),
             Command::Rm(args) => commands::lifecycle::rm::run(args, &config, path_file),
             Command::Clean(args) => commands::lifecycle::clean::run(args, &config, path_file),
             Command::Merge(args) => commands::merge::run(args, &config, path_file),
@@ -199,8 +195,8 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parse_main() {
-        let cli = Cli::try_parse_from(["wt", "main"]);
+    fn test_cli_parse_cd_no_args() {
+        let cli = Cli::try_parse_from(["wt", "cd"]);
         assert!(cli.is_ok());
     }
 
@@ -309,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_cli_parse_with_path_file() {
-        let cli = Cli::try_parse_from(["wt", "--path-file", "/tmp/test", "main"]);
+        let cli = Cli::try_parse_from(["wt", "--path-file", "/tmp/test", "cd"]);
         assert!(cli.is_ok());
         let cli = cli.unwrap();
         assert_eq!(cli.path_file, Some(std::path::PathBuf::from("/tmp/test")));

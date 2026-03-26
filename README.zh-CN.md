@@ -54,7 +54,7 @@ wt merge -d         # 合并后删除 worktree
 ```bash
 wt ls              # 列出所有 worktree（含 BASE 分支信息）
 wt cd feature-y    # 切换到另一个 worktree
-wt main            # 返回主仓库
+wt cd              # 返回主仓库
 ```
 
 ## Snap 模式
@@ -92,10 +92,9 @@ Agent 正常退出时：
 | `wt new [branch]` | 从当前分支创建 worktree（省略则随机命名） |
 | `wt new --base <branch>` | 指定 base 分支（默认为当前分支） |
 | `wt new -s <cmd>` | 创建 + snap 模式 |
-| `wt cd <branch>` | 切换到 worktree |
+| `wt cd [branch]` | 切换到 worktree（省略则返回主仓库） |
 | `wt ls` | 列出 worktree |
 | `wt ls -l` | 显示每个 worktree 的完整路径 |
-| `wt main` | 返回主仓库 |
 | `wt mv <old> <new>` | 重命名 worktree（`.` 表示当前） |
 | `wt rm <branch>` | 删除 worktree（`.` 表示当前） |
 | `wt rm -f <branch>` | 强制删除（含未提交更改） |

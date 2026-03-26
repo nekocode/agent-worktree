@@ -126,7 +126,7 @@ const MARKER_END: &str = "# === agent-worktree END ===";
 // Shell Wrapper 脚本
 //
 // 协议约定（修改 snap 行为时，三套脚本必须同步更新）：
-// - snap-continue 退出码: 0=完成(cd 到 main), 2=重新打开 agent, 3=退出(留在 worktree)
+// - snap-continue 退出码: 0=完成(cd 回 repo root), 2=重新打开 agent, 3=退出(留在 worktree)
 // - path_file 格式: 单行=目标路径, 双行=第一行路径+第二行命令(snap 模式)
 // ---------------------------------------------------------------------------
 
@@ -150,7 +150,7 @@ wt() {
   # Create temp file for path output (avoids stdout pollution from hooks)
   path_file="${TMPDIR:-/tmp}/wt-path-$$"
   case "$1" in
-    cd|main)
+    cd)
       "$wt_bin" "$@" --path-file "$path_file" || return $?
       if [[ -f "$path_file" ]]; then
         target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"
@@ -236,7 +236,7 @@ function wt
   end
   set -l path_file (mktemp)
   switch $argv[1]
-    case cd main
+    case cd
       $wt_bin $argv --path-file $path_file; or begin; rm -f $path_file; return $status; end
       if test -f $path_file; cd (cat $path_file); rm -f $path_file; end
     case new
@@ -302,7 +302,7 @@ function wt {
   }
   $pathFile = [System.IO.Path]::GetTempFileName()
   switch ($args[0]) {
-    { $_ -in 'cd', 'main' } {
+    { $_ -eq 'cd' } {
       & $wtBin.Source @args --path-file $pathFile
       if ($LASTEXITCODE -ne 0) { Remove-Item $pathFile -ErrorAction SilentlyContinue; return $LASTEXITCODE }
       if (Test-Path $pathFile) { Set-Location (Get-Content $pathFile); Remove-Item $pathFile }

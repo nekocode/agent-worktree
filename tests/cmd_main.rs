@@ -1,5 +1,5 @@
 // ===========================================================================
-// Integration Tests - Main Command
+// Integration Tests - Cd (no args) returns to main repo
 // ===========================================================================
 
 mod common;
@@ -10,16 +10,16 @@ use tempfile::tempdir;
 use common::*;
 
 #[test]
-fn test_main_returns_repo_root() {
+fn test_cd_no_args_returns_repo_root() {
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["main", "--path-file", path_file.to_str().unwrap()])
+        .args(["cd", "--path-file", path_file.to_str().unwrap()])
         .current_dir(dir.path())
         .output()
-        .expect("Failed to execute wt main");
+        .expect("Failed to execute wt cd");
 
     assert!(output.status.success());
 
@@ -30,21 +30,21 @@ fn test_main_returns_repo_root() {
 }
 
 #[test]
-fn test_main_without_print_path() {
+fn test_cd_no_args_without_path_file() {
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
 
     let output = Command::new(wt_binary())
-        .arg("main")
+        .arg("cd")
         .current_dir(dir.path())
         .output()
-        .expect("wt main failed");
+        .expect("wt cd failed");
 
     assert!(output.status.success());
 }
 
 #[test]
-fn test_main_from_subdirectory() {
+fn test_cd_no_args_from_subdirectory() {
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
 
@@ -53,10 +53,10 @@ fn test_main_from_subdirectory() {
 
     let path_file = create_path_file(dir.path());
     let output = Command::new(wt_binary())
-        .args(["main", "--path-file", path_file.to_str().unwrap()])
+        .args(["cd", "--path-file", path_file.to_str().unwrap()])
         .current_dir(&sub)
         .output()
-        .expect("wt main failed");
+        .expect("wt cd failed");
 
     assert!(output.status.success());
     let path = read_path_file(&path_file);

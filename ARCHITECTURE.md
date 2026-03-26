@@ -50,10 +50,9 @@ snap_command = "claude"          # 可选，snap 模式时记录启动命令
 wt new [branch]              # 创建 worktree 并进入（从当前分支 checkout，记录为 base branch）
 wt new [branch] --base <br>  # 指定 base branch（覆盖当前分支，从该分支 checkout）
 wt new [branch] -s <cmd>     # 创建 + snap 模式
-wt cd <branch>               # 切换到指定 worktree
+wt cd [branch]               # 切换到指定 worktree（省略则回到主仓库）
 wt ls                        # 列出 worktree（按创建时间降序）
 wt status                    # 查看当前 worktree 详细信息
-wt main                      # 回到主仓库
 wt mv <old> <new>            # 重命名 worktree 分支（old 可用 . 表示当前）
 wt rm <branch> [-f]          # 删除 worktree（branch 可用 . 表示当前）
 wt clean [--dry-run]         # 清理所有与 target 无差异的 worktree（target = base_branch > trunk）
@@ -96,7 +95,7 @@ wt init [options]            # 在当前项目初始化配置
 
 ## Shell 集成
 
-`wt cd`、`wt main`、`wt new`、`wt rm`、`wt mv`、`wt merge`、`wt clean` 等命令需要改变 shell 工作目录，因此需要 shell wrapper。
+`wt cd`、`wt new`、`wt rm`、`wt mv`、`wt merge`、`wt clean` 等命令需要改变 shell 工作目录，因此需要 shell wrapper。
 
 运行 `wt setup` 自动安装（npm 安装时会自动执行），会在 shell 配置文件中添加 wrapper 函数。
 
@@ -283,8 +282,7 @@ agent-worktree/
 │   │   └── commands/
 │   │       ├── mod.rs         # 模块声明 + Args 重导出
 │   │       ├── nav/           # 导航（改变 shell 工作目录）
-│   │       │   ├── cd.rs      # wt cd <branch>
-│   │       │   └── main_cmd.rs # wt main
+│   │       │   └── cd.rs      # wt cd [branch]（省略=回主仓库）
 │   │       ├── lifecycle/     # Worktree 生命周期
 │   │       │   ├── new.rs     # wt new [branch] [--base] [-s]
 │   │       │   ├── rm.rs      # wt rm <branch> [--force]
@@ -336,7 +334,7 @@ agent-worktree/
     ├── cmd_merge.rs        # wt merge 测试
     ├── cmd_clean.rs        # wt clean 测试
     ├── cmd_status.rs       # wt status 测试
-    ├── cmd_main.rs         # wt main 测试
+    ├── cmd_main.rs         # wt cd（无参数回主仓库）测试
     ├── cmd_snap.rs         # snap 模式测试
     └── cmd_misc.rs         # 错误处理 + 未知命令测试
 ```

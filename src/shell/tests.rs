@@ -147,13 +147,13 @@ fn test_wrapper_script_contains_wt_function() {
 #[test]
 fn test_wrapper_script_handles_cd_command() {
     let bash = Shell::Bash.wrapper_script();
-    assert!(bash.contains("cd|main"));
+    assert!(bash.contains("cd)"));
 
     let fish = Shell::Fish.wrapper_script();
-    assert!(fish.contains("case cd main"));
+    assert!(fish.contains("case cd"));
 
     let ps = Shell::PowerShell.wrapper_script();
-    assert!(ps.contains("'cd', 'main'"));
+    assert!(ps.contains("'cd'"));
 }
 
 // =========================================================================

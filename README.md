@@ -54,7 +54,7 @@ Other useful commands:
 ```bash
 wt ls              # List all worktrees (with BASE branch info)
 wt cd feature-y    # Switch to another worktree
-wt main            # Return to main repository
+wt cd              # Return to main repository
 ```
 
 ## Snap Mode
@@ -92,10 +92,9 @@ When the agent exits normally:
 | `wt new [branch]` | Create worktree from current branch (random name if omitted) |
 | `wt new --base <branch>` | Create from specific base branch (default: current branch) |
 | `wt new -s <cmd>` | Create + snap mode |
-| `wt cd <branch>` | Switch to worktree |
+| `wt cd [branch]` | Switch to worktree (omit branch to return to main repo) |
 | `wt ls` | List worktrees |
 | `wt ls -l` | Show full path for each worktree |
-| `wt main` | Return to main repository |
 | `wt mv <old> <new>` | Rename worktree (use `.` for current) |
 | `wt rm <branch>` | Remove worktree (use `.` for current) |
 | `wt rm -f <branch>` | Force remove with uncommitted changes |

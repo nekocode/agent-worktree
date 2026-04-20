@@ -141,7 +141,6 @@ Agent 正常退出时：
 ```toml
 [general]
 merge_strategy = "squash"  # squash | merge
-trunk = "main"  # trunk 分支（省略则自动检测）
 copy_files = [".env", ".env.*"]  # gitignore 风格的文件模式
 
 [hooks]
@@ -152,10 +151,16 @@ post_merge = []
 
 ### 项目配置 `.agent-worktree.toml`
 
+项目配置覆盖全局。`trunk` 仅存在于项目配置，其他字段合并生效。
+
 ```toml
 [general]
-copy_files = ["*.secret.*"]
-# ...
+trunk = "main"  # trunk 分支（省略则自动检测）
+merge_strategy = "merge"  # 覆盖全局策略
+copy_files = ["*.secret.*"]  # 追加到全局 copy_files
+
+[hooks]
+post_create = ["pnpm install"]  # 非空时覆盖全局同名 hook
 ```
 
 ## 存储结构
@@ -165,8 +170,8 @@ copy_files = ["*.secret.*"]
 ├── config.toml                    # 全局配置
 └── workspaces/
     └── {project}/
-        ├── swift-fox.toml         # worktree 元数据
-        ├── swift-fox/             # worktree 目录
+        ├── {branch_name}.toml     # worktree 元数据
+        ├── {branch_name}/         # worktree 目录
         └── ...
 ```
 

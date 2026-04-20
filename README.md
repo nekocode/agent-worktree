@@ -141,7 +141,6 @@ When the agent exits normally:
 ```toml
 [general]
 merge_strategy = "squash"  # squash | merge
-trunk = "main"  # Trunk branch (auto-detected if omitted)
 copy_files = [".env", ".env.*"]  # Gitignore-style patterns for files to copy
 
 [hooks]
@@ -152,10 +151,16 @@ post_merge = []
 
 ### Project Config `.agent-worktree.toml`
 
+Project config overrides global. `trunk` is project-only; other fields are merged.
+
 ```toml
 [general]
-copy_files = ["*.secret.*"]
-# ...
+trunk = "main"  # Trunk branch (auto-detected if omitted)
+merge_strategy = "merge"  # Override global strategy
+copy_files = ["*.secret.*"]  # Appended to global copy_files
+
+[hooks]
+post_create = ["pnpm install"]  # Replaces global hooks if set
 ```
 
 ## Storage Layout
@@ -165,8 +170,8 @@ copy_files = ["*.secret.*"]
 ├── config.toml                    # Global config
 └── workspaces/
     └── {project}/
-        ├── swift-fox.toml         # Worktree metadata
-        ├── swift-fox/             # Worktree directory
+        ├── {branch_name}.toml     # Worktree metadata
+        ├── {branch_name}/         # Worktree directory
         └── ...
 ```
 

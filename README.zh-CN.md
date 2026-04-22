@@ -136,7 +136,15 @@ Agent 正常退出时：
 
 ## 配置文件
 
-### 全局配置 `~/.agent-worktree/config.toml`
+### 基础目录
+
+默认 `~/.agent-worktree`。通过 `AGENT_WORKTREE_DIR` 覆盖：
+
+```bash
+export AGENT_WORKTREE_DIR=/data/agent-worktree
+```
+
+### 全局配置 `$AGENT_WORKTREE_DIR/config.toml`（默认 `~/.agent-worktree/config.toml`）
 
 ```toml
 [general]

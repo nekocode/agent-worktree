@@ -155,7 +155,13 @@ impl Config {
     }
 
     pub fn base_dir() -> Result<PathBuf> {
-        if let Ok(dir) = std::env::var("AGENT_WORKTREE_DIR") {
+        Self::resolve_base_dir(std::env::var("AGENT_WORKTREE_DIR").ok().as_deref())
+    }
+
+    // Split out so tests can exercise both env and fallback branches
+    // without mutating process-global env state (unsafe + racy under parallel tests).
+    fn resolve_base_dir(env_override: Option<&str>) -> Result<PathBuf> {
+        if let Some(dir) = env_override.filter(|s| !s.is_empty()) {
             return Ok(PathBuf::from(dir));
         }
         let base = BaseDirs::new().ok_or(Error::NoHome)?;
@@ -333,6 +339,24 @@ post_merge = ["git push", "notify-team"]
         let result = Config::base_dir();
         assert!(result.is_ok());
         let path = result.unwrap();
+        assert!(path.to_string_lossy().contains(".agent-worktree"));
+    }
+
+    #[test]
+    fn test_resolve_base_dir_with_env() {
+        let path = Config::resolve_base_dir(Some("/tmp/custom-wt")).unwrap();
+        assert_eq!(path, PathBuf::from("/tmp/custom-wt"));
+    }
+
+    #[test]
+    fn test_resolve_base_dir_empty_env_falls_back() {
+        let path = Config::resolve_base_dir(Some("")).unwrap();
+        assert!(path.to_string_lossy().contains(".agent-worktree"));
+    }
+
+    #[test]
+    fn test_resolve_base_dir_none_falls_back() {
+        let path = Config::resolve_base_dir(None).unwrap();
         assert!(path.to_string_lossy().contains(".agent-worktree"));
     }
 

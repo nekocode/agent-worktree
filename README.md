@@ -136,7 +136,15 @@ When the agent exits normally:
 
 ## Configuration
 
-### Global Config `~/.agent-worktree/config.toml`
+### Base Directory
+
+Defaults to `~/.agent-worktree`. Override via `AGENT_WORKTREE_DIR`:
+
+```bash
+export AGENT_WORKTREE_DIR=/data/agent-worktree
+```
+
+### Global Config `$AGENT_WORKTREE_DIR/config.toml` (default `~/.agent-worktree/config.toml`)
 
 ```toml
 [general]

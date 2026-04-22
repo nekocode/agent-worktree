@@ -155,6 +155,9 @@ impl Config {
     }
 
     pub fn base_dir() -> Result<PathBuf> {
+        if let Ok(dir) = std::env::var("AGENT_WORKTREE_DIR") {
+            return Ok(PathBuf::from(dir));
+        }
         let base = BaseDirs::new().ok_or(Error::NoHome)?;
         Ok(base.home_dir().join(".agent-worktree"))
     }

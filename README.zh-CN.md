@@ -132,6 +132,7 @@ Agent 正常退出时：
 | `wt init` | 初始化项目配置 |
 | `wt init --trunk <branch>` | 初始化并指定 trunk 分支 |
 | `wt init --merge-strategy <strategy>` | 设置默认合并策略（squash/merge） |
+| `wt init --sync-strategy <strategy>` | 设置默认同步策略（rebase/merge） |
 | `wt init --copy-files <pattern>` | 指定要复制到新 worktree 的文件（可重复） |
 
 ## 配置文件
@@ -149,6 +150,7 @@ export AGENT_WORKTREE_DIR=/data/agent-worktree
 ```toml
 [general]
 merge_strategy = "squash"  # squash | merge
+sync_strategy = "rebase"   # rebase | merge
 copy_files = [".env", ".env.*"]  # gitignore 风格的文件模式
 
 [hooks]
@@ -164,7 +166,8 @@ post_merge = []
 ```toml
 [general]
 trunk = "main"  # trunk 分支（省略则自动检测）
-merge_strategy = "merge"  # 覆盖全局策略
+merge_strategy = "merge"  # 覆盖全局合并策略
+sync_strategy = "merge"   # 覆盖全局同步策略
 copy_files = ["*.secret.*"]  # 追加到全局 copy_files
 
 [hooks]

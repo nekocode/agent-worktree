@@ -56,6 +56,9 @@ pub struct GeneralConfig {
     pub merge_strategy: MergeStrategy,
 
     #[serde(default)]
+    pub sync_strategy: SyncStrategy,
+
+    #[serde(default)]
     pub copy_files: Vec<String>,
 }
 
@@ -64,6 +67,8 @@ pub struct ProjectGeneralConfig {
     pub trunk: Option<String>,
 
     pub merge_strategy: Option<MergeStrategy>,
+
+    pub sync_strategy: Option<SyncStrategy>,
 
     #[serde(default)]
     pub copy_files: Vec<String>,
@@ -106,6 +111,7 @@ pub struct Config {
     pub base_dir: PathBuf,
     pub workspaces_dir: PathBuf,
     pub merge_strategy: MergeStrategy,
+    pub sync_strategy: SyncStrategy,
     pub copy_files: Vec<String>,
     pub hooks: HooksConfig,
     pub trunk: Option<String>,
@@ -128,6 +134,10 @@ impl Config {
             .general
             .merge_strategy
             .unwrap_or(global.general.merge_strategy);
+        let sync_strategy = project
+            .general
+            .sync_strategy
+            .unwrap_or(global.general.sync_strategy);
         let mut copy_files = global.general.copy_files;
         copy_files.extend(project.general.copy_files);
 
@@ -141,6 +151,7 @@ impl Config {
             base_dir,
             workspaces_dir,
             merge_strategy,
+            sync_strategy,
             copy_files,
             hooks,
             trunk: project.general.trunk,
@@ -203,6 +214,7 @@ mod tests {
     fn test_global_config_defaults() {
         let config = GlobalConfig::default();
         assert_eq!(config.general.merge_strategy, MergeStrategy::Squash);
+        assert_eq!(config.general.sync_strategy, SyncStrategy::Rebase);
         assert!(config.general.copy_files.is_empty());
         assert!(config.hooks.post_create.is_empty());
     }
@@ -212,6 +224,7 @@ mod tests {
         let config = ProjectConfig::default();
         assert!(config.general.trunk.is_none());
         assert!(config.general.merge_strategy.is_none());
+        assert!(config.general.sync_strategy.is_none());
         assert!(config.general.copy_files.is_empty());
     }
 
@@ -331,6 +344,7 @@ post_merge = ["git push", "notify-team"]
         let general = ProjectGeneralConfig::default();
         assert!(general.trunk.is_none());
         assert!(general.merge_strategy.is_none());
+        assert!(general.sync_strategy.is_none());
         assert!(general.copy_files.is_empty());
     }
 
@@ -371,6 +385,7 @@ post_merge = ["git push", "notify-team"]
         let config = GlobalConfig {
             general: GeneralConfig {
                 merge_strategy: MergeStrategy::Merge,
+                sync_strategy: SyncStrategy::default(),
                 copy_files: vec![".env".to_string()],
             },
             hooks: HooksConfig {
@@ -406,11 +421,42 @@ trunk = "develop"
     }
 
     #[test]
+    fn test_global_config_parse_sync_strategy() {
+        let toml = r#"
+[general]
+sync_strategy = "merge"
+"#;
+        let config: GlobalConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.general.sync_strategy, SyncStrategy::Merge);
+    }
+
+    #[test]
+    fn test_project_sync_strategy_override() {
+        let toml = r#"
+[general]
+sync_strategy = "merge"
+"#;
+        let config: ProjectConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.general.sync_strategy, Some(SyncStrategy::Merge));
+    }
+
+    #[test]
+    fn test_project_sync_strategy_absent() {
+        let toml = r#"
+[general]
+trunk = "develop"
+"#;
+        let config: ProjectConfig = toml::from_str(toml).unwrap();
+        assert!(config.general.sync_strategy.is_none());
+    }
+
+    #[test]
     fn test_project_config_serialize() {
         let config = ProjectConfig {
             general: ProjectGeneralConfig {
                 trunk: Some("develop".to_string()),
                 merge_strategy: None,
+                sync_strategy: None,
                 copy_files: vec![".env.local".to_string()],
             },
             hooks: HooksConfig::default(),

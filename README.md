@@ -132,6 +132,7 @@ When the agent exits normally:
 | `wt init` | Initialize project config |
 | `wt init --trunk <branch>` | Initialize with specific trunk branch |
 | `wt init --merge-strategy <strategy>` | Set default merge strategy (squash/merge) |
+| `wt init --sync-strategy <strategy>` | Set default sync strategy (rebase/merge) |
 | `wt init --copy-files <pattern>` | Files to copy to new worktrees (repeatable) |
 
 ## Configuration
@@ -149,6 +150,7 @@ export AGENT_WORKTREE_DIR=/data/agent-worktree
 ```toml
 [general]
 merge_strategy = "squash"  # squash | merge
+sync_strategy = "rebase"   # rebase | merge
 copy_files = [".env", ".env.*"]  # Gitignore-style patterns for files to copy
 
 [hooks]
@@ -164,7 +166,8 @@ Project config overrides global. `trunk` is project-only; other fields are merge
 ```toml
 [general]
 trunk = "main"  # Trunk branch (auto-detected if omitted)
-merge_strategy = "merge"  # Override global strategy
+merge_strategy = "merge"  # Override global merge strategy
+sync_strategy = "merge"   # Override global sync strategy
 copy_files = ["*.secret.*"]  # Appended to global copy_files
 
 [hooks]

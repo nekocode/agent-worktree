@@ -69,7 +69,7 @@ wt merge [options]           # 合并当前 worktree（默认 merge 回 base bra
     -H, --skip-hooks         # 跳过 pre-merge hook
 
 wt sync [options]            # 从 base branch 同步更新到当前 worktree（fallback trunk）
-    -s, --strategy <rebase|merge>  # 同步策略，默认 rebase
+    -s, --strategy <rebase|merge>  # 同步策略，默认 rebase（可被 sync_strategy 配置覆盖）
     --from <branch>          # 指定同步源分支（覆盖 base branch / trunk，校验存在性）
     --continue               # 解决冲突后继续
     --abort                  # 放弃同步，恢复到冲突前状态
@@ -89,6 +89,7 @@ wt setup --shell zsh         # 指定 shell
 wt init [options]            # 在当前项目初始化配置
     --trunk <branch>         # 主干分支
     --merge-strategy <squash|merge>  # 默认合并策略
+    --sync-strategy <rebase|merge>   # 默认同步策略
     --copy-files <pattern>   # 复制文件模式（可重复）
 ```
 
@@ -221,6 +222,7 @@ wt merge         # 无冲突，原子完成
 ```toml
 [general]
 merge_strategy = "squash"               # squash（默认） | merge
+sync_strategy = "rebase"                # rebase（默认） | merge
 # 从主仓库复制到新 worktree 的文件（通常是被 gitignore 但开发必需的），支持 glob
 copy_files = ["*.secret.*"]
 
@@ -234,7 +236,7 @@ post_merge = []
 
 - `copy_files`：global + project **追加**合并
 - `hooks`：project 非空时**完全替代** global（不追加）
-- `merge_strategy`：project 非空时**覆盖** global（`Option` 语义）
+- `merge_strategy` / `sync_strategy`：project 非空时**覆盖** global（`Option` 语义）
 - `trunk`：仅 project 级别配置
 
 ### 项目配置 `.agent-worktree.toml`
@@ -243,6 +245,7 @@ post_merge = []
 [general]
 trunk = "main"                    # 主干分支，默认自动检测
 merge_strategy = "merge"          # 可选，覆盖全局策略
+sync_strategy = "merge"           # 可选，覆盖全局同步策略
 copy_files = [".env", ".env.*"]
 
 [hooks]
@@ -291,7 +294,7 @@ agent-worktree/
 │   │       ├── snap/          # Snap 模式完整工作流
 │   │       │   └── resume.rs  # agent 退出后的处理逻辑
 │   │       ├── sys/           # 系统级操作
-│   │       │   ├── init.rs    # wt init [--trunk] [--merge-strategy] [--copy-files]
+│   │       │   ├── init.rs    # wt init [--trunk] [--merge-strategy] [--sync-strategy] [--copy-files]
 │   │       │   ├── setup.rs   # wt setup [--shell]
 │   │       │   └── update.rs  # wt update
 │   │       ├── merge.rs       # wt merge [-s] [--into] [-d] [--continue] [--abort]

@@ -9,7 +9,7 @@ use clap_complete::engine::ArgValueCompleter;
 
 use crate::cli::{Error, Result};
 use crate::complete;
-use crate::config::{MergeStrategy, ProjectConfig};
+use crate::config::{MergeStrategy, ProjectConfig, SyncStrategy};
 use crate::git;
 
 #[derive(Args)]
@@ -21,6 +21,10 @@ pub struct InitArgs {
     /// Default merge strategy
     #[arg(long, value_enum, value_name = "STRATEGY")]
     merge_strategy: Option<MergeStrategy>,
+
+    /// Default sync strategy
+    #[arg(long, value_enum, value_name = "STRATEGY")]
+    sync_strategy: Option<SyncStrategy>,
 
     /// Files to copy from main repo to new worktrees (can be repeated)
     #[arg(long, value_name = "PATTERN")]
@@ -43,6 +47,7 @@ pub fn run(args: InitArgs) -> Result<()> {
     let mut config = ProjectConfig::default();
     config.general.trunk = Some(trunk.clone());
     config.general.merge_strategy = args.merge_strategy;
+    config.general.sync_strategy = args.sync_strategy;
     if !args.copy_files.is_empty() {
         config.general.copy_files = args.copy_files;
     }
@@ -55,6 +60,9 @@ pub fn run(args: InitArgs) -> Result<()> {
     eprintln!("Trunk branch: {trunk}");
     if let Some(ref strategy) = config.general.merge_strategy {
         eprintln!("Merge strategy: {strategy:?}");
+    }
+    if let Some(ref strategy) = config.general.sync_strategy {
+        eprintln!("Sync strategy: {strategy:?}");
     }
     if !config.general.copy_files.is_empty() {
         eprintln!("Copy files: {}", config.general.copy_files.join(", "));

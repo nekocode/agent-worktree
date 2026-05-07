@@ -86,7 +86,7 @@ pub fn run(args: SyncArgs, config: &Config) -> Result<()> {
         return Err(Error::Other(format!("Cannot sync {current} with itself")));
     }
 
-    let strategy = args.strategy.unwrap_or_default();
+    let strategy = args.strategy.unwrap_or(config.sync_strategy);
 
     eprintln!("Syncing {current} with {target} ({strategy:?})...");
 

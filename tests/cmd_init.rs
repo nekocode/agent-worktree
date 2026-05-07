@@ -158,6 +158,8 @@ fn test_init_with_all_options() {
             "develop",
             "--merge-strategy",
             "squash",
+            "--sync-strategy",
+            "rebase",
             "--copy-files",
             ".env",
         ])
@@ -170,5 +172,32 @@ fn test_init_with_all_options() {
     let content = std::fs::read_to_string(dir.path().join(".agent-worktree.toml")).unwrap();
     assert!(content.contains("develop"));
     assert!(content.contains("squash"));
+    assert!(content.contains("rebase"));
     assert!(content.contains(".env"));
+}
+
+#[test]
+fn test_init_with_sync_strategy() {
+    let dir = tempdir().unwrap();
+    setup_git_repo(dir.path());
+
+    let output = Command::new(wt_binary())
+        .args(["init", "--sync-strategy", "merge"])
+        .current_dir(dir.path())
+        .output()
+        .expect("wt init failed");
+
+    assert!(output.status.success());
+
+    let content = std::fs::read_to_string(dir.path().join(".agent-worktree.toml")).unwrap();
+    assert!(
+        content.contains("sync_strategy") && content.contains("merge"),
+        "Expected sync_strategy=merge in config, got: {content}"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Sync strategy"),
+        "Expected stderr to mention sync strategy, got: {stderr}"
+    );
 }

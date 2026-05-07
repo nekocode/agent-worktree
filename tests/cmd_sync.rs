@@ -188,6 +188,69 @@ fn test_sync_from_nonexistent_branch_fails() {
 }
 
 #[test]
+fn test_sync_uses_project_config_strategy() {
+    let (dir, repo, home) = setup_worktree_test_env();
+
+    std::fs::write(
+        repo.join(".agent-worktree.toml"),
+        "[general]\nsync_strategy = \"merge\"\n",
+    )
+    .unwrap();
+    Command::new("git")
+        .args(["add", ".agent-worktree.toml"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "Add config"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+
+    let path_file = create_path_file(dir.path());
+    let output = Command::new(wt_binary())
+        .args([
+            "new",
+            "sync-cfg",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new failed");
+    assert!(output.status.success());
+
+    let wt_path = PathBuf::from(read_path_file(&path_file).trim());
+
+    std::fs::write(repo.join("trunk-update.txt"), "trunk update").unwrap();
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+    Command::new("git")
+        .args(["commit", "-m", "Trunk update"])
+        .current_dir(&repo)
+        .output()
+        .unwrap();
+
+    let output = Command::new(wt_binary())
+        .arg("sync")
+        .current_dir(&wt_path)
+        .env("HOME", &home)
+        .output()
+        .expect("wt sync failed");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "sync failed: {stderr}");
+    assert!(
+        stderr.contains("Merge"),
+        "Expected merge strategy used, got: {stderr}"
+    );
+}
+
+#[test]
 fn test_sync_from_specific_branch() {
     let (dir, repo, home) = setup_worktree_test_env();
 

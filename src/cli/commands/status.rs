@@ -24,7 +24,7 @@ pub fn run(config: &Config) -> Result<()> {
     let meta_path = meta::meta_path_with_fallback(&wt_dir, &current);
     let loaded = WorktreeMeta::load(&meta_path).ok();
 
-    let base_branch = loaded.as_ref().and_then(|m| m.base_branch.as_deref());
+    let base_branch = loaded.as_ref().map(|m| m.base_branch.as_str());
     let effective_target = meta::resolve_target_branch(
         None,
         base_branch,
@@ -58,9 +58,6 @@ pub fn run(config: &Config) -> Result<()> {
             "Created:      {}",
             m.created_at.format("%Y-%m-%d %H:%M:%S UTC")
         );
-        if let Some(ref cmd) = m.snap_command {
-            println!("Snap command: {cmd}");
-        }
     }
 
     println!("Commits:      {commits}");

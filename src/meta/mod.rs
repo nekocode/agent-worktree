@@ -8,15 +8,16 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
-// 路径工具 — 文件名从 .status.toml 迁移到 .toml，保持向前兼容
+// Path helpers — filename migrated from .status.toml to .toml; legacy still
+// readable for forward compatibility.
 // ---------------------------------------------------------------------------
 
-/// 新格式路径: {wt_dir}/{branch}.toml
+/// New format path: {wt_dir}/{branch}.toml
 pub fn meta_path(wt_dir: &Path, branch: &str) -> PathBuf {
     wt_dir.join(format!("{branch}.toml"))
 }
 
-/// 兼容加载: 先找 .toml，fallback .status.toml
+/// Compatibility loader: prefer .toml, fallback to .status.toml.
 pub fn meta_path_with_fallback(wt_dir: &Path, branch: &str) -> PathBuf {
     let new = meta_path(wt_dir, branch);
     if new.exists() {
@@ -29,7 +30,7 @@ pub fn meta_path_with_fallback(wt_dir: &Path, branch: &str) -> PathBuf {
     new
 }
 
-/// 删除 meta 文件（新旧格式都尝试）
+/// Remove meta file (try both new and legacy names).
 pub fn remove_meta(wt_dir: &Path, branch: &str) {
     std::fs::remove_file(meta_path(wt_dir, branch)).ok();
     std::fs::remove_file(wt_dir.join(format!("{branch}.status.toml"))).ok();
@@ -47,46 +48,43 @@ pub enum Error {
 
     #[error("failed to serialize metadata: {0}")]
     Serialize(#[from] toml::ser::Error),
+
+    #[error("metadata missing required field: base_branch")]
+    MissingBaseBranch,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorktreeMeta {
     pub created_at: DateTime<Utc>,
-    pub base_commit: String,
-    pub trunk: String,
-
-    #[serde(default)]
-    pub snap_command: Option<String>,
-
-    #[serde(default)]
-    pub base_branch: Option<String>,
+    pub base_branch: String,
 }
 
 impl WorktreeMeta {
-    pub fn new(base_commit: String, trunk: String) -> Self {
+    pub fn new(base_branch: String) -> Self {
         Self {
             created_at: Utc::now(),
-            base_commit,
-            trunk,
-            snap_command: None,
-            base_branch: None,
+            base_branch,
         }
     }
 
-    pub fn with_snap(mut self, command: String) -> Self {
-        self.snap_command = Some(command);
-        self
-    }
-
-    pub fn with_base_branch(mut self, branch: String) -> Self {
-        self.base_branch = Some(branch);
-        self
-    }
-
-    /// Load from file
+    /// Load from file. Falls back to legacy schema (uses `trunk` when
+    /// `base_branch` is absent) so pre-existing worktrees keep working.
+    /// Unknown fields (e.g. dropped `base_commit`, `snap_command`, `trunk`)
+    /// are silently ignored.
     pub fn load(path: &Path) -> Result<Self> {
-        let content = std::fs::read_to_string(path)?;
-        Ok(toml::from_str(&content)?)
+        Self::parse(&std::fs::read_to_string(path)?)
+    }
+
+    fn parse(content: &str) -> Result<Self> {
+        let raw: RawMeta = toml::from_str(content)?;
+        let base_branch = raw
+            .base_branch
+            .or(raw.trunk)
+            .ok_or(Error::MissingBaseBranch)?;
+        Ok(Self {
+            created_at: raw.created_at,
+            base_branch,
+        })
     }
 
     /// Save to file
@@ -97,13 +95,25 @@ impl WorktreeMeta {
     }
 }
 
+/// Deserialization shim: tolerates legacy `trunk` field. Explicit `.or()`
+/// in `parse` enforces base_branch-wins priority when both keys are present
+/// (serde's `#[serde(alias)]` is order-dependent and would not guarantee it).
+#[derive(Deserialize)]
+struct RawMeta {
+    created_at: DateTime<Utc>,
+    #[serde(default)]
+    base_branch: Option<String>,
+    #[serde(default)]
+    trunk: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
-// 目标分支解析 — CLI 覆盖 > base_branch（若存在） > trunk
+// Target branch resolution — CLI override > base_branch (if exists) > trunk
 // ---------------------------------------------------------------------------
 
-/// 从 meta 文件解析 merge/sync 目标（封装常见的 load → extract → resolve 流程）
+/// Resolve merge/sync target by reading meta file.
 ///
-/// 优先级: cli_override > meta.base_branch (if exists) > trunk
+/// Priority: cli_override > meta.base_branch (if branch exists) > trunk
 pub fn resolve_effective_target(
     wt_dir: &Path,
     branch: &str,
@@ -113,13 +123,13 @@ pub fn resolve_effective_target(
 ) -> String {
     let meta_path = meta_path_with_fallback(wt_dir, branch);
     let loaded = WorktreeMeta::load(&meta_path).ok();
-    let base = loaded.as_ref().and_then(|m| m.base_branch.as_deref());
+    let base = loaded.as_ref().map(|m| m.base_branch.as_str());
     resolve_target_branch(cli_override, base, branch_exists, trunk)
 }
 
-/// 解析 merge/sync 的目标分支（纯逻辑，无 I/O）
+/// Pure resolver (no I/O).
 ///
-/// 优先级: cli_override > base_branch (if branch still exists) > trunk
+/// Priority: cli_override > base_branch (if branch still exists) > trunk
 pub fn resolve_target_branch(
     cli_override: Option<&str>,
     base_branch: Option<&str>,
@@ -144,17 +154,8 @@ mod tests {
 
     #[test]
     fn test_new_meta() {
-        let meta = WorktreeMeta::new("abc123".to_string(), "main".to_string());
-        assert_eq!(meta.base_commit, "abc123");
-        assert_eq!(meta.trunk, "main");
-        assert!(meta.snap_command.is_none());
-    }
-
-    #[test]
-    fn test_with_snap() {
-        let meta = WorktreeMeta::new("abc123".to_string(), "main".to_string())
-            .with_snap("claude".to_string());
-        assert_eq!(meta.snap_command, Some("claude".to_string()));
+        let meta = WorktreeMeta::new("main".to_string());
+        assert_eq!(meta.base_branch, "main");
     }
 
     #[test]
@@ -162,40 +163,57 @@ mod tests {
         let dir = tempdir().unwrap();
         let path = dir.path().join("test.toml");
 
-        let meta = WorktreeMeta::new("def456".to_string(), "develop".to_string())
-            .with_snap("aider".to_string());
-
+        let meta = WorktreeMeta::new("develop".to_string());
         meta.save(&path).unwrap();
 
         let loaded = WorktreeMeta::load(&path).unwrap();
-        assert_eq!(loaded.base_commit, "def456");
-        assert_eq!(loaded.trunk, "develop");
-        assert_eq!(loaded.snap_command, Some("aider".to_string()));
+        assert_eq!(loaded.base_branch, "develop");
     }
 
     #[test]
-    fn test_parse_toml() {
+    fn test_parse_minimal_toml() {
+        let toml = r#"
+created_at = "2024-01-15T10:30:00Z"
+base_branch = "feature-x"
+"#;
+        let meta = WorktreeMeta::parse(toml).unwrap();
+        assert_eq!(meta.base_branch, "feature-x");
+    }
+
+    /// Legacy compatibility: old toml files have `trunk` but no `base_branch`.
+    #[test]
+    fn test_parse_legacy_uses_trunk_as_base_branch() {
         let toml = r#"
 created_at = "2024-01-15T10:30:00Z"
 base_commit = "abc1234"
 trunk = "main"
+snap_command = "claude"
 "#;
-        let meta: WorktreeMeta = toml::from_str(toml).unwrap();
-        assert_eq!(meta.base_commit, "abc1234");
-        assert_eq!(meta.trunk, "main");
-        assert!(meta.snap_command.is_none());
+        let meta = WorktreeMeta::parse(toml).unwrap();
+        assert_eq!(meta.base_branch, "main");
+    }
+
+    /// New `base_branch` wins over legacy `trunk` when both present.
+    #[test]
+    fn test_parse_base_branch_wins_over_trunk() {
+        let toml = r#"
+created_at = "2024-01-15T10:30:00Z"
+base_branch = "feature-x"
+trunk = "main"
+"#;
+        let meta = WorktreeMeta::parse(toml).unwrap();
+        assert_eq!(meta.base_branch, "feature-x");
     }
 
     #[test]
-    fn test_parse_toml_with_snap() {
+    fn test_parse_missing_base_and_trunk_fails() {
         let toml = r#"
 created_at = "2024-01-15T10:30:00Z"
-base_commit = "abc1234"
-trunk = "main"
-snap_command = "claude --model opus"
 "#;
-        let meta: WorktreeMeta = toml::from_str(toml).unwrap();
-        assert_eq!(meta.snap_command, Some("claude --model opus".to_string()));
+        assert!(matches!(
+            WorktreeMeta::parse(toml),
+            Err(Error::MissingBaseBranch)
+        ));
     }
 
     #[test]
@@ -223,7 +241,6 @@ snap_command = "claude --model opus"
     #[test]
     fn test_meta_path_with_fallback_neither() {
         let dir = tempdir().unwrap();
-        // Neither exists → returns new format path
         let expected = dir.path().join("br.toml");
         assert_eq!(meta_path_with_fallback(dir.path(), "br"), expected);
     }
@@ -240,54 +257,6 @@ snap_command = "claude --model opus"
 
         assert!(!new.exists());
         assert!(!legacy.exists());
-    }
-
-    // -----------------------------------------------------------------------
-    // base_branch 字段
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn test_with_base_branch() {
-        let meta = WorktreeMeta::new("abc".to_string(), "main".to_string())
-            .with_base_branch("feature-a".to_string());
-        assert_eq!(meta.base_branch, Some("feature-a".to_string()));
-    }
-
-    #[test]
-    fn test_parse_toml_without_base_branch() {
-        // 旧格式 TOML 缺少 base_branch → 反序列化为 None（向前兼容）
-        let toml = r#"
-created_at = "2024-01-15T10:30:00Z"
-base_commit = "abc1234"
-trunk = "main"
-"#;
-        let meta: WorktreeMeta = toml::from_str(toml).unwrap();
-        assert!(meta.base_branch.is_none());
-    }
-
-    #[test]
-    fn test_parse_toml_with_base_branch() {
-        let toml = r#"
-created_at = "2024-01-15T10:30:00Z"
-base_commit = "abc1234"
-trunk = "main"
-base_branch = "feature-x"
-"#;
-        let meta: WorktreeMeta = toml::from_str(toml).unwrap();
-        assert_eq!(meta.base_branch, Some("feature-x".to_string()));
-    }
-
-    #[test]
-    fn test_base_branch_roundtrip() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("test.toml");
-
-        let meta = WorktreeMeta::new("abc".to_string(), "main".to_string())
-            .with_base_branch("dev".to_string());
-        meta.save(&path).unwrap();
-
-        let loaded = WorktreeMeta::load(&path).unwrap();
-        assert_eq!(loaded.base_branch, Some("dev".to_string()));
     }
 
     // -----------------------------------------------------------------------
@@ -308,12 +277,7 @@ base_branch = "feature-x"
 
     #[test]
     fn test_resolve_base_branch_deleted() {
-        let result = resolve_target_branch(
-            None,
-            Some("feature-a"),
-            |_| false, // branch 已删除
-            "main",
-        );
+        let result = resolve_target_branch(None, Some("feature-a"), |_| false, "main");
         assert_eq!(result, "main");
     }
 
@@ -330,8 +294,7 @@ base_branch = "feature-x"
     #[test]
     fn test_effective_target_reads_meta() {
         let dir = tempdir().unwrap();
-        let meta = WorktreeMeta::new("abc".to_string(), "main".to_string())
-            .with_base_branch("feature-a".to_string());
+        let meta = WorktreeMeta::new("feature-a".to_string());
         meta.save(&meta_path(dir.path(), "my-branch")).unwrap();
 
         let result =
@@ -342,7 +305,6 @@ base_branch = "feature-x"
     #[test]
     fn test_effective_target_no_meta_falls_back_to_trunk() {
         let dir = tempdir().unwrap();
-        // 没有 meta 文件 → fallback 到 trunk
         let result = resolve_effective_target(dir.path(), "my-branch", None, |_| true, "main");
         assert_eq!(result, "main");
     }
@@ -350,8 +312,7 @@ base_branch = "feature-x"
     #[test]
     fn test_effective_target_cli_override_wins() {
         let dir = tempdir().unwrap();
-        let meta = WorktreeMeta::new("abc".to_string(), "main".to_string())
-            .with_base_branch("feature-a".to_string());
+        let meta = WorktreeMeta::new("feature-a".to_string());
         meta.save(&meta_path(dir.path(), "my-branch")).unwrap();
 
         let result =

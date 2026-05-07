@@ -39,7 +39,7 @@ pub enum SnapAction {
 pub struct SnapContext {
     pub cwd: PathBuf,
     pub branch: String,
-    pub merge_target: String, // 实际 merge 目标（base_branch > trunk）
+    pub merge_target: String,
     pub repo_root: PathBuf,
     pub has_uncommitted: bool,
     pub has_commits_ahead: bool,
@@ -67,23 +67,17 @@ pub fn gather_context(config: &Config) -> Result<SnapContext> {
     let workspace_id = git::workspace_id()?;
     let repo_root = git::repo_root()?;
 
-    // Load metadata to get trunk (fallback to legacy .status.toml)
+    // Load metadata to get base_branch (fallback to legacy .status.toml).
     let wt_dir = config.workspaces_dir.join(&workspace_id);
     let meta_path = meta::meta_path_with_fallback(&wt_dir, &branch);
-
     let loaded_meta = WorktreeMeta::load(&meta_path).ok();
-    let trunk = loaded_meta
-        .as_ref()
-        .map(|m| m.trunk.clone())
-        .unwrap_or_else(|| config.resolve_trunk());
 
-    let base_branch = loaded_meta.as_ref().and_then(|m| m.base_branch.as_deref());
-    let merge_target = meta::resolve_target_branch(
-        None,
-        base_branch,
-        |b| git::branch_exists(b).unwrap_or(false),
-        &trunk,
-    );
+    // Resolve trunk lazily — `resolve_trunk` shells out when not configured,
+    // and is only needed when meta is missing or its base_branch was deleted.
+    let merge_target = match loaded_meta.as_ref().map(|m| m.base_branch.as_str()) {
+        Some(bb) if git::branch_exists(bb).unwrap_or(false) => bb.to_string(),
+        _ => config.resolve_trunk(),
+    };
 
     let has_uncommitted = git::has_uncommitted_changes().unwrap_or(false);
     let has_commits_ahead = git::commit_count(&merge_target, "HEAD").unwrap_or(0) > 0;

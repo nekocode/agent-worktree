@@ -102,7 +102,8 @@ fn test_new_creates_metadata_file() {
 
         if meta_path.exists() {
             let content = std::fs::read_to_string(&meta_path).unwrap();
-            assert!(content.contains("base_commit") || content.contains("trunk"));
+            assert!(content.contains("base_branch"));
+            assert!(content.contains("created_at"));
         }
     }
 }

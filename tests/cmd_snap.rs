@@ -78,9 +78,11 @@ fn test_new_with_snap_creates_metadata() {
     let meta_path = workspace_dir.path().join("snap-meta-test.toml");
     assert!(meta_path.exists());
 
+    // snap command no longer persisted in meta — it flows through path_file only.
     let content = std::fs::read_to_string(&meta_path).unwrap();
-    assert!(content.contains("snap"));
-    assert!(content.contains("agent"));
+    assert!(content.contains("base_branch"));
+    assert!(content.contains("created_at"));
+    assert!(!content.contains("snap_command"));
 
     let _ = Command::new(wt_binary())
         .args(["rm", "snap-meta-test", "-f"])

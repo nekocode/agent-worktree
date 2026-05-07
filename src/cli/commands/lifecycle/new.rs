@@ -37,16 +37,15 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     // Determine trunk branch
     let trunk = config.resolve_trunk();
 
-    // Resolve base branch: --base flag > current branch > trunk
-    // base_branch 决定了 checkout 起点和 merge/sync 的默认目标
+    // Resolve base branch: --base flag > current branch > trunk.
+    // Determines both the checkout starting point and the default merge/sync target.
     let base_branch = if let Some(ref b) = args.base {
-        // --base 必须是已存在的分支
         if !git::branch_exists(b)? {
             return Err(Error::Other(format!("Branch '{b}' does not exist")));
         }
         b.clone()
     } else {
-        // 默认使用当前分支，detached HEAD 时 fallback 到 trunk
+        // Detached HEAD falls back to trunk.
         git::current_branch()
             .ok()
             .filter(|b| b != "HEAD")
@@ -67,21 +66,7 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
 
     git::create_worktree(&wt_path, &branch, &base_branch)?;
 
-    // Get base commit for metadata
-    let base_commit = git::current_commit().unwrap_or_default();
-
-    // Create metadata
-    // 仅当 base_branch ≠ trunk 时才持久化，避免冗余
-    let mut meta = WorktreeMeta::new(base_commit, trunk.clone());
-    // with_base_branch 会 move base_branch，先保存用于日志输出
-    let base_display = base_branch.clone();
-    if base_branch != trunk {
-        meta = meta.with_base_branch(base_branch);
-    }
-    if let Some(ref cmd) = args.snap {
-        meta = meta.with_snap(cmd.clone());
-    }
-
+    let meta = WorktreeMeta::new(base_branch);
     let meta_path = meta::meta_path(&wt_dir, &branch);
     meta.save(&meta_path)
         .map_err(|e| Error::Other(e.to_string()))?;
@@ -112,7 +97,7 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     if path_file.is_some() {
         write_path_file(path_file, &wt_path)?;
     } else {
-        eprintln!("Created worktree: {branch} (from {base_display})");
+        eprintln!("Created worktree: {branch} (from {})", meta.base_branch);
         eprintln!("Path: {}", wt_path.display());
     }
 

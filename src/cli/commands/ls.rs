@@ -42,7 +42,7 @@ pub fn run(args: LsArgs, config: &Config) -> Result<()> {
     }
 
     let trunk = config.resolve_trunk();
-    // 一次性获取所有本地分支，避免 N 次 subprocess
+    // Fetch all local branches once instead of N subprocess calls.
     let known_branches: HashSet<String> = git::local_branches()
         .unwrap_or_default()
         .into_iter()
@@ -59,7 +59,7 @@ pub fn run(args: LsArgs, config: &Config) -> Result<()> {
         let meta_path = meta::meta_path_with_fallback(&wt_dir, branch);
         let loaded_meta = meta::WorktreeMeta::load(&meta_path).ok();
 
-        let base_branch = loaded_meta.as_ref().and_then(|m| m.base_branch.clone());
+        let base_branch = loaded_meta.as_ref().map(|m| m.base_branch.clone());
         let created_at = loaded_meta.as_ref().map(|m| m.created_at);
 
         let effective_target = meta::resolve_target_branch(
@@ -100,7 +100,7 @@ pub fn run(args: LsArgs, config: &Config) -> Result<()> {
         });
     }
 
-    // 按创建时间排序（新的在前），无 meta 的排最后
+    // Sort newest-first; rows without meta sink to the bottom (None < Some).
     rows.sort_by(|a, b| b.created_at.cmp(&a.created_at));
 
     print_table(&rows);
@@ -139,7 +139,6 @@ fn print_table(rows: &[Row]) {
         0
     };
 
-    // 表头
     let mut header = format!("  {:<bw$}", "BRANCH", bw = bw);
     if show_base {
         header.push_str(&format!("   {:<sw$}", "BASE", sw = sw));

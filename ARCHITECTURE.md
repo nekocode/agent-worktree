@@ -36,11 +36,10 @@ $AGENT_WORKTREE_DIR/  (默认 ~/.agent-worktree/)
 
 ```toml
 created_at = 2024-01-15T10:30:00Z
-base_commit = "abc1234"
-trunk = "main"
-base_branch = "feature-a"       # 可选，基底分支（merge/sync 的默认目标，--base 可自定义）
-snap_command = "claude"          # 可选，snap 模式时记录启动命令
+base_branch = "main"             # 创建时的源分支（merge/sync 默认目标）
 ```
+
+> 旧版字段（`base_commit`/`trunk`/`snap_command`）已弃用。读取时若缺 `base_branch` 则回退到旧 `trunk` 字段；其他旧字段静默忽略。
 
 ---
 

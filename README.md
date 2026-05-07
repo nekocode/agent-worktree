@@ -114,7 +114,7 @@ checks the worktree state:
 | `wt mv <old> <new>` | Rename worktree (use `.` for current) |
 | `wt rm <branch>` | Remove worktree (use `.` for current) |
 | `wt rm -f <branch>` | Force remove with uncommitted changes |
-| `wt clean` | Remove worktrees with no diff from trunk |
+| `wt clean` | Remove worktrees with no diff from their base branch (falls back to trunk); dirty worktrees are skipped |
 | `wt clean --dry-run` | Preview which worktrees would be cleaned |
 
 ### Workflow
@@ -136,7 +136,7 @@ checks the worktree state:
 
 | Command | Description |
 |---------|-------------|
-| `wt status` | Show current worktree information |
+| `wt status` | Show current worktree info (also reports in-progress `wt sync` rebase/merge with recovery hints) |
 | `wt update` | Update to the latest version |
 
 ### Configuration

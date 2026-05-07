@@ -28,6 +28,9 @@ npm install -g agent-worktree
 wt update
 ```
 
+> **Windows 注意** — `wt update` 会重装 npm 包，运行中的 `wt.exe` 被 OS
+> 锁定时会失败。更新前先关闭所有运行 `wt` 的 shell。
+
 Shell 集成会自动安装。如需手动重新安装：
 
 ```bash
@@ -67,9 +70,15 @@ wt new fix-bug -s codex    # 指定分支名
 wt new -s "claude --dangerously-skip-permissions"  # 带参数的命令
 ```
 
+> **参数引号** — `-s` 只接受单个 token。命令含 flag/参数时务必加引号
+> （`-s "agent --flag"`），否则 shell 会把后续参数交给 `wt new`。
+>
+> **嵌套 snap 拒绝** — 在已有 worktree 内执行 `wt new -s` 直接报错。
+> 先 `wt cd` 回主仓库再重试。
+
 流程：创建 worktree → 进入 → 运行 agent → [开发] → agent 退出 → 检查更改 → 合并 → 清理
 
-Agent 正常退出时：
+Agent 退出时（正常或 crash / Ctrl+C），`wt` 检查 worktree 状态：
 
 - **无改动**：自动清理 worktree
 - **只有 commits**（无未提交更改）：
@@ -82,6 +91,9 @@ Agent 正常退出时：
   [r] 重新打开 agent（让 agent 提交）
   [q] 退出 snap mode（手动提交）
   ```
+
+> **base_branch 必须仍存在** — 若 agent 运行期间 worktree 的 base 分支被
+> 删除，`[m]` 会报错。改用 `wt merge --into <branch>` 显式指定目标。
 
 ## 命令
 
@@ -98,7 +110,7 @@ Agent 正常退出时：
 | `wt mv <old> <new>` | 重命名 worktree（`.` 表示当前） |
 | `wt rm <branch>` | 删除 worktree（`.` 表示当前） |
 | `wt rm -f <branch>` | 强制删除（含未提交更改） |
-| `wt clean` | 清理与 trunk 无差异的 worktree |
+| `wt clean` | 清理与各自 base 分支（fallback trunk）无差异的 worktree；脏 worktree 跳过 |
 | `wt clean --dry-run` | 预览将被清理的 worktree（不实际删除） |
 
 ### 工作流
@@ -120,7 +132,7 @@ Agent 正常退出时：
 
 | 命令 | 描述 |
 |------|------|
-| `wt status` | 显示当前 worktree 信息 |
+| `wt status` | 显示当前 worktree 信息（含 `wt sync` 进行中的 rebase/merge 状态及恢复指引） |
 | `wt update` | 更新到最新版本 |
 
 ### 配置
@@ -158,6 +170,16 @@ post_create = ["pnpm install"]
 pre_merge = ["pnpm test", "pnpm lint"]
 post_merge = []
 ```
+
+> **`copy_files` 约束** — gitignore 风格 pattern 必须停留在 repo 内：
+> 拒绝 `/` 开头（绝对路径）和 `..` 段，符号链接不跟随。
+>
+> **Hook 信任边界** — hooks 通过 `sh -c`（Windows `cmd /C`）执行，
+> 无沙箱无超时。把 `.agent-worktree.toml` 当 committed shell script
+> 对待：只跑你愿意 `bash` 的 repo 的 hooks。
+>
+> **Hook CWD** — `pre_merge` 与 `post_merge` 一律 worktree 根；
+> `post_create` 在新 worktree 内。
 
 ### 项目配置 `.agent-worktree.toml`
 

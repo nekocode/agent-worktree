@@ -94,6 +94,12 @@ pub enum MergeStrategy {
     Merge,
 }
 
+impl MergeStrategy {
+    pub fn is_squash(&self) -> bool {
+        matches!(self, Self::Squash)
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum SyncStrategy {
@@ -189,11 +195,20 @@ impl Config {
     }
 
     fn load_project() -> Result<ProjectConfig> {
-        let path = Path::new(".agent-worktree.toml");
+        // Resolve from the main repo root (via git --git-common-dir) so the
+        // same `.agent-worktree.toml` applies whether the user is in the main
+        // repo, a worktree root, or any subdirectory of either. Reading
+        // CWD-relative would silently miss the file inside worktrees.
+        // Outside any git repo, fall back to default — non-git commands
+        // (setup/update) must still load.
+        let path = match crate::git::repo_root() {
+            Ok(root) => root.join(".agent-worktree.toml"),
+            Err(_) => return Ok(ProjectConfig::default()),
+        };
         if !path.exists() {
             return Ok(ProjectConfig::default());
         }
-        let content = std::fs::read_to_string(path)?;
+        let content = std::fs::read_to_string(&path)?;
         Ok(toml::from_str(&content)?)
     }
 }

@@ -45,6 +45,17 @@ pub fn run(args: RmArgs, config: &Config, path_file: Option<&Path>) -> Result<()
     // Check if we're inside the worktree being removed
     let inside_target = git::is_cwd_inside(&wt_path);
 
+    // Without the shell wrapper, removing the current worktree leaves the
+    // parent shell stranded in a deleted directory (every subsequent `pwd`
+    // / `ls` then errors). Refuse instead of producing a broken shell.
+    if inside_target && path_file.is_none() {
+        return Err(Error::Other(
+            "Refusing to remove the current worktree without shell integration.\n\
+             Run 'wt setup' first, or 'cd' to the main repo and retry."
+                .into(),
+        ));
+    }
+
     // Remove worktree
     git::remove_worktree(&wt_path, args.force)?;
 

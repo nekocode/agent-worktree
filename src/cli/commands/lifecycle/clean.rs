@@ -39,6 +39,7 @@ pub fn run(args: CleanArgs, config: &Config, path_file: Option<&Path>) -> Result
     let worktrees = git::list_worktrees()?;
     let mut cleaned = 0;
     let mut checked = 0;
+    let mut skipped_dirty = 0;
     let mut cleaned_current = false;
 
     for wt in worktrees {
@@ -65,35 +66,48 @@ pub fn run(args: CleanArgs, config: &Config, path_file: Option<&Path>) -> Result
             &trunk,
         );
 
-        // Check if worktree has no diff from target
-        if !git::has_diff_from(branch, &target).unwrap_or(true) {
-            if args.dry_run {
-                eprintln!("Would clean (no diff from {target}): {branch}");
-                cleaned += 1;
-                continue;
-            }
+        // Skip worktrees that still differ from target — committed diff is
+        // the cheap check, run it before the per-worktree dirty status call.
+        if git::has_diff_from(branch, &target).unwrap_or(true) {
+            continue;
+        }
 
-            // Check if user is currently inside this worktree
-            let inside = git::is_cwd_inside(&wt.path);
+        // Dirty worktrees aren't clean even with no committed diff: git
+        // refuses non-force removal anyway, and silently discarding
+        // in-flight work would be a footgun.
+        let dirty = git::uncommitted_count_in(&wt.path).unwrap_or(0);
+        if dirty > 0 {
+            eprintln!("Skipping {branch}: {dirty} uncommitted change(s)");
+            skipped_dirty += 1;
+            continue;
+        }
 
-            eprintln!("Cleaning worktree (no diff from {target}): {branch}");
-
-            if let Err(e) = git::remove_worktree(&wt.path, false) {
-                eprintln!("Warning: failed to remove worktree {branch}: {e}");
-                continue;
-            }
-
-            // Switch to main repo before deleting branch
-            std::env::set_current_dir(&main_path).ok();
-            git::delete_branch(branch, false).ok();
-
-            crate::meta::remove_meta(&wt_dir, branch);
-
+        if args.dry_run {
+            eprintln!("Would clean (no diff from {target}): {branch}");
             cleaned += 1;
+            continue;
+        }
 
-            if inside {
-                cleaned_current = true;
-            }
+        let inside = git::is_cwd_inside(&wt.path);
+
+        eprintln!("Cleaning worktree (no diff from {target}): {branch}");
+
+        if let Err(e) = git::remove_worktree(&wt.path, false) {
+            eprintln!("Warning: failed to remove worktree {branch}: {e}");
+            continue;
+        }
+
+        // Switch to main repo before deleting branch — git refuses to
+        // delete the branch a worktree is on.
+        std::env::set_current_dir(&main_path).ok();
+        git::delete_branch(branch, false).ok();
+
+        crate::meta::remove_meta(&wt_dir, branch);
+
+        cleaned += 1;
+
+        if inside {
+            cleaned_current = true;
         }
     }
 
@@ -109,6 +123,9 @@ pub fn run(args: CleanArgs, config: &Config, path_file: Option<&Path>) -> Result
         eprintln!("No worktrees to clean (all have changes).");
     } else {
         eprintln!("{cleaned} worktree(s) {verb}.");
+    }
+    if skipped_dirty > 0 {
+        eprintln!("{skipped_dirty} worktree(s) skipped due to uncommitted changes.");
     }
 
     // Write main repo path for shell to cd if we were inside a cleaned worktree

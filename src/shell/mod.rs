@@ -15,6 +15,9 @@ pub enum Error {
 
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("{0}")]
+    Other(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,7 +136,7 @@ const MARKER_END: &str = "# === agent-worktree END ===";
 const BASH_ZSH_WRAPPER: &str = r#"# === agent-worktree BEGIN ===
 # NOTE: Don't use 'path' as variable name - it shadows zsh's $path array
 wt() {
-  local wt_bin path_file target_path snap_cmd
+  local wt_bin path_file target_path snap_cmd reopen_count
   if [[ -n "$ZSH_VERSION" ]]; then
     wt_bin=$(whence -p wt 2>/dev/null)
   else
@@ -147,11 +150,12 @@ wt() {
   case " $* " in
     *" -h "*|*" --help "*) "$wt_bin" "$@"; return ;;
   esac
-  # Create temp file for path output (avoids stdout pollution from hooks)
-  path_file="${TMPDIR:-/tmp}/wt-path-$$"
+  # Use mktemp so concurrent calls (and subshells where $$ is the parent
+  # PID) get unique files; fall back to PID-based name if mktemp missing.
+  path_file=$(mktemp 2>/dev/null) || path_file="${TMPDIR:-/tmp}/wt-path-$$"
   case "$1" in
     cd)
-      "$wt_bin" "$@" --path-file "$path_file" || return $?
+      "$wt_bin" "$@" --path-file "$path_file" || { rm -f "$path_file"; return $?; }
       if [[ -f "$path_file" ]]; then
         target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"
       fi
@@ -159,7 +163,7 @@ wt() {
     new)
       # Check for snap mode (-s/--snap)
       if [[ " $* " == *" -s "* ]] || [[ " $* " == *" --snap "* ]]; then
-        "$wt_bin" "$@" --path-file "$path_file" || return $?
+        "$wt_bin" "$@" --path-file "$path_file" || { rm -f "$path_file"; return $?; }
         if [[ -f "$path_file" ]]; then
           target_path="$(head -n1 "$path_file")"
           snap_cmd="$(tail -n1 "$path_file")"
@@ -168,46 +172,63 @@ wt() {
           [[ -n "$target_path" ]] && cd "$target_path"
           # Run snap mode loop in shell (preserves TTY)
           if [[ -n "$snap_cmd" ]]; then
+            reopen_count=0
             while true; do
+              if [[ $reopen_count -gt 0 ]]; then
+                echo "[wt] Reopen #$reopen_count"
+              fi
               echo "Entering snap mode: $snap_cmd"
               echo "Worktree: $(basename "$target_path")"
               echo "---"
               eval "$snap_cmd"
               local agent_status=$?
               if [[ $agent_status -ne 0 ]]; then
-                echo "Agent exited abnormally. Worktree preserved."
-                return $agent_status
+                # Crash / SIGINT / non-zero exit: still consult snap-continue
+                # so the user can choose merge / reopen / preserve instead of
+                # being silently stranded with a half-made worktree.
+                echo "[wt] Agent exited with status $agent_status; checking worktree state..."
               fi
               "$wt_bin" snap-continue --path-file "$path_file"
               local continue_status=$?
               # 0: done, cd to main; 2: reopen agent; 3: exit, stay in worktree
-              if [[ $continue_status -eq 0 ]] && [[ -f "$path_file" ]]; then
-                target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"
-                break
-              elif [[ $continue_status -eq 3 ]]; then
-                rm -f "$path_file"
-                break
-              elif [[ $continue_status -ne 2 ]]; then
-                rm -f "$path_file"
-                break
-              fi
+              case $continue_status in
+                0)
+                  if [[ -f "$path_file" ]]; then
+                    target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"
+                  fi
+                  break
+                  ;;
+                2)
+                  rm -f "$path_file" 2>/dev/null
+                  reopen_count=$((reopen_count + 1))
+                  ;;
+                3)
+                  rm -f "$path_file" 2>/dev/null
+                  break
+                  ;;
+                *)
+                  rm -f "$path_file" 2>/dev/null
+                  break
+                  ;;
+              esac
             done
           fi
         fi
       else
-        "$wt_bin" "$@" --path-file "$path_file" || return $?
+        "$wt_bin" "$@" --path-file "$path_file" || { rm -f "$path_file"; return $?; }
         if [[ -f "$path_file" ]]; then
           target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"
         fi
       fi
       ;;
     rm|mv|merge|clean)
-      "$wt_bin" "$@" --path-file "$path_file" || return $?
+      "$wt_bin" "$@" --path-file "$path_file" || { rm -f "$path_file"; return $?; }
       if [[ -f "$path_file" ]]; then
         target_path=$(<"$path_file"); rm -f "$path_file"; cd "$target_path"
       fi
       ;;
     *)
+      rm -f "$path_file" 2>/dev/null
       "$wt_bin" "$@"
       ;;
   esac
@@ -249,28 +270,37 @@ function wt
           test "$target_path" = "$snap_cmd"; and set snap_cmd ""
           test -n "$target_path"; and cd $target_path
           if test -n "$snap_cmd"
+            set -l reopen_count 0
             while true
+              if test $reopen_count -gt 0
+                echo "[wt] Reopen #$reopen_count"
+              end
               echo "Entering snap mode: $snap_cmd"
               echo "Worktree: "(basename $target_path)
               echo "---"
               eval $snap_cmd
               set -l agent_status $status
               if test $agent_status -ne 0
-                echo "Agent exited abnormally. Worktree preserved."
-                return $agent_status
+                echo "[wt] Agent exited with status $agent_status; checking worktree state..."
               end
               $wt_bin snap-continue --path-file $path_file
               set -l continue_status $status
               # 0: done, cd to main; 2: reopen agent; 3: exit, stay in worktree
-              if test $continue_status -eq 0; and test -f $path_file
-                cd (cat $path_file); rm -f $path_file
-                break
-              else if test $continue_status -eq 3
-                rm -f $path_file
-                break
-              else if test $continue_status -ne 2
-                rm -f $path_file
-                break
+              switch $continue_status
+                case 0
+                  if test -f $path_file
+                    cd (cat $path_file); rm -f $path_file
+                  end
+                  break
+                case 2
+                  rm -f $path_file 2>/dev/null
+                  set reopen_count (math $reopen_count + 1)
+                case 3
+                  rm -f $path_file 2>/dev/null
+                  break
+                case '*'
+                  rm -f $path_file 2>/dev/null
+                  break
               end
             end
           end
@@ -319,26 +349,34 @@ function wt {
           if ($targetPath -eq $snapCmd) { $snapCmd = "" }
           if ($targetPath) { Set-Location $targetPath }
           if ($snapCmd) {
+            $reopenCount = 0
             while ($true) {
+              if ($reopenCount -gt 0) {
+                Write-Host "[wt] Reopen #$reopenCount"
+              }
               Write-Host "Entering snap mode: $snapCmd"
               Write-Host "Worktree: $(Split-Path $targetPath -Leaf)"
               Write-Host "---"
               Invoke-Expression $snapCmd
               $agentStatus = $LASTEXITCODE
               if ($agentStatus -ne 0) {
-                Write-Host "Agent exited abnormally. Worktree preserved."
-                return $agentStatus
+                Write-Host "[wt] Agent exited with status $agentStatus; checking worktree state..."
               }
               & $wtBin.Source snap-continue --path-file $pathFile
               $continueStatus = $LASTEXITCODE
               # 0: done, cd to main; 2: reopen agent; 3: exit, stay in worktree
-              if ($continueStatus -eq 0 -and (Test-Path $pathFile)) {
-                Set-Location (Get-Content $pathFile); Remove-Item $pathFile
+              if ($continueStatus -eq 0) {
+                if (Test-Path $pathFile) {
+                  Set-Location (Get-Content $pathFile); Remove-Item $pathFile
+                }
                 break
+              } elseif ($continueStatus -eq 2) {
+                Remove-Item $pathFile -ErrorAction SilentlyContinue
+                $reopenCount++
               } elseif ($continueStatus -eq 3) {
                 Remove-Item $pathFile -ErrorAction SilentlyContinue
                 break
-              } elseif ($continueStatus -ne 2) {
+              } else {
                 Remove-Item $pathFile -ErrorAction SilentlyContinue
                 break
               }
@@ -401,7 +439,7 @@ pub fn install(shell: Shell) -> Result<()> {
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
 
     // Remove old wrapper if present
-    let content = remove_wrapper(&content);
+    let content = remove_wrapper(&content)?;
 
     // Append new wrapper with blank lines before and after
     let new_content = if content.is_empty() {
@@ -426,17 +464,33 @@ pub fn install(shell: Shell) -> Result<()> {
     Ok(())
 }
 
-/// Remove existing wrapper from content
-fn remove_wrapper(content: &str) -> String {
+/// Strip an existing wrapper block from rc-file content.
+///
+/// Refuses to touch the file if BEGIN/END markers don't pair up cleanly —
+/// silently truncating after an orphan marker would wipe unrelated user
+/// config (PATH exports, aliases, etc).
+fn remove_wrapper(content: &str) -> Result<String> {
     let mut result = String::new();
     let mut in_wrapper = false;
 
-    for line in content.lines() {
+    for (idx, line) in content.lines().enumerate() {
         if line.contains(MARKER_BEGIN) {
+            if in_wrapper {
+                return Err(Error::Other(format!(
+                    "rc file has nested '{MARKER_BEGIN}' at line {} — manual fixup needed before re-running 'wt setup'.",
+                    idx + 1
+                )));
+            }
             in_wrapper = true;
             continue;
         }
         if line.contains(MARKER_END) {
+            if !in_wrapper {
+                return Err(Error::Other(format!(
+                    "rc file has '{MARKER_END}' without matching BEGIN at line {} — manual fixup needed before re-running 'wt setup'.",
+                    idx + 1
+                )));
+            }
             in_wrapper = false;
             continue;
         }
@@ -446,12 +500,18 @@ fn remove_wrapper(content: &str) -> String {
         }
     }
 
+    if in_wrapper {
+        return Err(Error::Other(format!(
+            "rc file has '{MARKER_BEGIN}' without matching END — manual fixup needed before re-running 'wt setup'."
+        )));
+    }
+
     // Remove trailing newlines
     while result.ends_with("\n\n") {
         result.pop();
     }
 
-    result
+    Ok(result)
 }
 
 #[cfg(test)]

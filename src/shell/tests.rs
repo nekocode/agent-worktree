@@ -161,14 +161,14 @@ fn test_wrapper_script_handles_cd_command() {
 // =========================================================================
 #[test]
 fn test_remove_wrapper_empty() {
-    let result = remove_wrapper("");
+    let result = remove_wrapper("").unwrap();
     assert_eq!(result, "");
 }
 
 #[test]
 fn test_remove_wrapper_no_wrapper() {
     let content = "alias ll='ls -la'\nexport PATH=$PATH:/usr/local/bin\n";
-    let result = remove_wrapper(content);
+    let result = remove_wrapper(content).unwrap();
     assert_eq!(result, content);
 }
 
@@ -180,7 +180,7 @@ wt() { ... }
 # === agent-worktree END ===
 export PATH=$PATH:/usr/local/bin
 "#;
-    let result = remove_wrapper(content);
+    let result = remove_wrapper(content).unwrap();
     assert!(result.contains("alias ll"));
     assert!(result.contains("export PATH"));
     assert!(!result.contains("agent-worktree"));
@@ -193,7 +193,7 @@ fn test_remove_wrapper_only_wrapper() {
 wt() { ... }
 # === agent-worktree END ===
 "#;
-    let result = remove_wrapper(content);
+    let result = remove_wrapper(content).unwrap();
     assert!(!result.contains("agent-worktree"));
 }
 
@@ -204,7 +204,7 @@ wt() { ... }
 # === agent-worktree END ===
 alias ll='ls -la'
 "#;
-    let result = remove_wrapper(content);
+    let result = remove_wrapper(content).unwrap();
     assert!(!result.contains("agent-worktree"));
     assert!(result.contains("alias ll"));
 }
@@ -217,10 +217,46 @@ wt() { ... }
 # === agent-worktree END ===
 line2
 "#;
-    let result = remove_wrapper(content);
+    let result = remove_wrapper(content).unwrap();
     let lines: Vec<&str> = result.lines().collect();
     assert_eq!(lines[0], "line1");
     assert_eq!(lines[1], "line2");
+}
+
+#[test]
+fn test_remove_wrapper_unmatched_begin_errors() {
+    let content = r#"line1
+# === agent-worktree BEGIN ===
+wt() { ... }
+line2
+"#;
+    let err = remove_wrapper(content).unwrap_err();
+    assert!(matches!(err, Error::Other(_)));
+    assert!(err.to_string().contains("BEGIN"));
+}
+
+#[test]
+fn test_remove_wrapper_unmatched_end_errors() {
+    let content = r#"line1
+wt() { ... }
+# === agent-worktree END ===
+line2
+"#;
+    let err = remove_wrapper(content).unwrap_err();
+    assert!(matches!(err, Error::Other(_)));
+    assert!(err.to_string().contains("END"));
+}
+
+#[test]
+fn test_remove_wrapper_nested_begin_errors() {
+    let content = r#"# === agent-worktree BEGIN ===
+wt1() { ... }
+# === agent-worktree BEGIN ===
+wt2() { ... }
+# === agent-worktree END ===
+"#;
+    let err = remove_wrapper(content).unwrap_err();
+    assert!(matches!(err, Error::Other(_)));
 }
 
 // =========================================================================
@@ -246,7 +282,7 @@ fn test_install_creates_wrapper() {
     // Mock the config_file by directly testing the logic
     let wrapper = Shell::Bash.wrapper_script();
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
-    let _content = remove_wrapper(&content);
+    let _content = remove_wrapper(&content).unwrap();
     let new_content = format!("{wrapper}\n");
     std::fs::write(&config_path, new_content).unwrap();
 
@@ -273,7 +309,7 @@ export PATH=/usr/local/bin
     // Simulate install
     let wrapper = Shell::Bash.wrapper_script();
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
-    let content = remove_wrapper(&content);
+    let content = remove_wrapper(&content).unwrap();
     let new_content = format!("{content}\n{wrapper}\n");
     std::fs::write(&config_path, new_content).unwrap();
 
@@ -298,7 +334,7 @@ fn test_install_appends_to_existing_content() {
     // Simulate install
     let wrapper = Shell::Zsh.wrapper_script();
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
-    let content = remove_wrapper(&content);
+    let content = remove_wrapper(&content).unwrap();
     let new_content = format!("{content}\n{wrapper}\n");
     std::fs::write(&config_path, new_content).unwrap();
 
@@ -343,7 +379,7 @@ fn test_install_handles_content_without_newline() {
     // Simulate install
     let wrapper = Shell::Bash.wrapper_script();
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
-    let content = remove_wrapper(&content);
+    let content = remove_wrapper(&content).unwrap();
 
     // The install function handles this case
     let new_content = if content.is_empty() {
@@ -368,7 +404,7 @@ fn test_remove_wrapper_trailing_newlines() {
 
 
 "#;
-    let result = remove_wrapper(content);
+    let result = remove_wrapper(content).unwrap();
     // Should not have excessive trailing newlines
     assert!(!result.ends_with("\n\n\n"));
 }

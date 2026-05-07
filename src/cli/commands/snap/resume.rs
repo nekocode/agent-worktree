@@ -1,14 +1,14 @@
 // ===========================================================================
 // wt snap-continue - Continue snap mode after agent exits
 // ===========================================================================
-//
-// Exit codes:
-// - 0: Done (merged or cleaned up), path_file contains repo root
-// - 1: Error
-// - 2: Reopen agent (shell wrapper should loop)
-// - 3: Exit snap mode, stay in worktree (no cd)
 
 use std::path::{Path, PathBuf};
+
+// Exit codes consumed by the shell wrapper's snap loop.
+// Keep in sync with the `case $continue_status` blocks in src/shell/mod.rs.
+pub const EXIT_DONE: i32 = 0;
+pub const EXIT_REOPEN: i32 = 2;
+pub const EXIT_PRESERVE: i32 = 3;
 
 use crate::cli::{write_path_file, Error, Result};
 use crate::config::Config;
@@ -73,10 +73,21 @@ pub fn gather_context(config: &Config) -> Result<SnapContext> {
     let loaded_meta = WorktreeMeta::load(&meta_path).ok();
 
     // Resolve trunk lazily — `resolve_trunk` shells out when not configured,
-    // and is only needed when meta is missing or its base_branch was deleted.
+    // and is only needed when meta is missing.
+    //
+    // If the worktree was created from a real base branch that has since
+    // been deleted, refuse rather than silently merging into trunk —
+    // landing commits on the wrong branch is a worse failure mode than an
+    // explicit error that points the user at `wt merge --into <branch>`.
     let merge_target = match loaded_meta.as_ref().map(|m| m.base_branch.as_str()) {
         Some(bb) if git::branch_exists(bb).unwrap_or(false) => bb.to_string(),
-        _ => config.resolve_trunk(),
+        Some(bb) => {
+            return Err(Error::Other(format!(
+                "Base branch '{bb}' no longer exists.\n\
+                 Resolve manually with: wt merge --into <branch>"
+            )));
+        }
+        None => config.resolve_trunk(),
     };
 
     let has_uncommitted = git::has_uncommitted_changes().unwrap_or(false);
@@ -142,9 +153,13 @@ pub fn determine_action_with_choice(
     }
 }
 
-/// Remove worktree, branch, and metadata
+/// Remove worktree, branch, and metadata.
+///
+/// Uses non-force removal so that any untracked files left in the worktree
+/// (build artifacts, .env, agent-generated scratch) cause the cleanup to
+/// fail loudly instead of silently deleting work.
 pub fn cleanup_worktree(wt_path: &Path, branch: &str, config: &Config) -> Result<()> {
-    git::remove_worktree(wt_path, true)?;
+    git::remove_worktree(wt_path, false)?;
     git::delete_branch(branch, true).ok();
 
     // Remove metadata
@@ -172,7 +187,7 @@ fn execute_action(
             eprintln!("No changes detected. Cleaning up...");
             cleanup_worktree(&ctx.cwd, &ctx.branch, config)?;
             write_path_file(path_file, &ctx.repo_root)?;
-            std::process::exit(0);
+            std::process::exit(EXIT_DONE);
         }
         SnapAction::MergeAndCleanup => {
             // Run pre-merge hooks
@@ -184,17 +199,19 @@ fn execute_action(
 
             eprintln!("Merging {} into {}...", ctx.branch, ctx.merge_target);
 
-            std::env::set_current_dir(&ctx.repo_root)
-                .map_err(|e| Error::Other(e.to_string()))?;
+            std::env::set_current_dir(&ctx.repo_root).map_err(|e| Error::Other(e.to_string()))?;
             git::checkout(&ctx.merge_target)?;
 
-            if !git::dry_run_merge(&ctx.branch)? {
+            if !git::dry_run_merge(&ctx.branch, config.merge_strategy.is_squash())? {
                 git::checkout(&ctx.merge_target).ok();
                 let _ = std::env::set_current_dir(&ctx.cwd);
                 super::super::merge::print_conflict_hint();
                 eprintln!();
-                eprintln!("Worktree preserved.");
-                std::process::exit(3);
+                eprintln!(
+                    "Conflicts in worktree '{}'. Resolve there, then 'wt merge'.",
+                    ctx.branch
+                );
+                std::process::exit(EXIT_PRESERVE);
             }
 
             if let Err(e) = super::super::merge::execute_merge(
@@ -206,26 +223,29 @@ fn execute_action(
                 let _ = git::reset_merge();
                 let _ = git::checkout(&ctx.merge_target);
                 let _ = std::env::set_current_dir(&ctx.cwd);
-                eprintln!("Worktree preserved.");
-                std::process::exit(3);
+                eprintln!(
+                    "Worktree '{}' preserved. Inspect there and retry.",
+                    ctx.branch
+                );
+                std::process::exit(EXIT_PRESERVE);
             }
 
             eprintln!("Merged {} into {}", ctx.branch, ctx.merge_target);
 
-            // Run post-merge hooks
+            // Match pre_merge CWD so hooks see the same context across phases.
             if !config.hooks.post_merge.is_empty() {
                 eprintln!("Running post-merge hooks...");
-                process::run_hooks(&config.hooks.post_merge, &ctx.repo_root)
+                process::run_hooks(&config.hooks.post_merge, &ctx.cwd)
                     .map_err(|e| Error::Other(e.to_string()))?;
             }
 
             cleanup_worktree(&ctx.cwd, &ctx.branch, config)?;
             write_path_file(path_file, &ctx.repo_root)?;
-            std::process::exit(0);
+            std::process::exit(EXIT_DONE);
         }
         SnapAction::Reopen => {
             eprintln!("Reopening agent...");
-            std::process::exit(2);
+            std::process::exit(EXIT_REOPEN);
         }
         SnapAction::ExitPreserve => {
             eprintln!();
@@ -235,8 +255,7 @@ fn execute_action(
             eprintln!("  git add . && git commit -m 'your message'");
             eprintln!("  wt merge    # merge and cleanup");
             eprintln!();
-            // Exit code 3: exit snap mode, stay in worktree (no cd)
-            std::process::exit(3);
+            std::process::exit(EXIT_PRESERVE);
         }
     }
 }

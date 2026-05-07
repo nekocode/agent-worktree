@@ -24,12 +24,25 @@ pub fn merge(branch: &str, squash: bool, no_ff: bool, message: Option<&str>) -> 
 }
 
 /// Dry-run merge to check for conflicts without leaving state.
-/// Returns Ok(true) if merge would be clean, Ok(false) if conflicts detected.
-pub fn dry_run_merge(branch: &str) -> Result<bool> {
-    let result = run(&["merge", "--no-commit", "--no-ff", branch]);
+///
+/// Mirrors the real merge strategy: a `--no-ff` dry-run that passes can
+/// still fail under `--squash` (different three-way ancestor), silently
+/// leaving the repo half-merged.
+///
+/// Returns Ok(true) if merge would be clean, Ok(false) on conflict.
+pub fn dry_run_merge(branch: &str, squash: bool) -> Result<bool> {
+    let result = if squash {
+        run(&["merge", "--squash", "--no-commit", branch])
+    } else {
+        run(&["merge", "--no-commit", "--no-ff", branch])
+    };
     let clean = result.is_ok();
-    // Always abort to restore index/worktree, regardless of merge result
-    let _ = run(&["merge", "--abort"]);
+    if squash {
+        // `git merge --squash` never sets MERGE_HEAD, so `--abort` errors.
+        let _ = run(&["reset", "--hard", "HEAD"]);
+    } else {
+        let _ = run(&["merge", "--abort"]);
+    }
     Ok(clean)
 }
 

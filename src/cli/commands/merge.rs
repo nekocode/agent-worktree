@@ -48,10 +48,27 @@ fn run_merge(
     let workspace_id = git::workspace_id()?;
     let wt_dir = config.workspaces_dir.join(&workspace_id);
 
-    // --into target must exist
+    // --into target must exist AND not be checked out elsewhere.
+    // git refuses to checkout a branch that another worktree owns; without
+    // the second check, merge would fail mid-flight with a confusing
+    // low-level git error instead of a clear upfront message.
     if let Some(ref branch) = args.into {
         if !git::branch_exists(branch)? {
             return Err(Error::Other(format!("Branch '{branch}' does not exist")));
+        }
+        let main_canon = main_repo
+            .canonicalize()
+            .unwrap_or_else(|_| main_repo.to_path_buf());
+        let conflict = git::list_worktrees()?.into_iter().find(|wt| {
+            wt.branch.as_deref() == Some(branch.as_str())
+                && wt.path.canonicalize().unwrap_or_else(|_| wt.path.clone()) != main_canon
+        });
+        if let Some(wt) = conflict {
+            return Err(Error::Other(format!(
+                "Branch '{branch}' is checked out in another worktree at {}.\n\
+                 Switch that worktree off the branch, or merge from there directly.",
+                wt.path.display()
+            )));
         }
     }
 
@@ -68,9 +85,9 @@ fn run_merge(
     }
 
     if git::has_uncommitted_changes()? {
-        return Err(Error::Other(
-            "Uncommitted changes detected. Commit or stash first.".into(),
-        ));
+        return Err(Error::Other(format!(
+            "Worktree '{current}' has uncommitted changes. Commit or stash first."
+        )));
     }
 
     let wt_path = wt_dir.join(&current);
@@ -79,9 +96,9 @@ fn run_merge(
     let strategy = args.strategy.unwrap_or(config.merge_strategy);
 
     if !args.skip_hooks && !config.hooks.pre_merge.is_empty() {
-        let cwd = std::env::current_dir().map_err(|e| Error::Other(e.to_string()))?;
         eprintln!("Running pre-merge hooks...");
-        process::run_hooks(&config.hooks.pre_merge, &cwd)
+        // CWD = worktree so pre_merge and post_merge see the same context.
+        process::run_hooks(&config.hooks.pre_merge, &wt_path)
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
@@ -92,36 +109,47 @@ fn run_merge(
 
     if git::has_uncommitted_changes()? {
         return Err(Error::Other(
-            "Main repo has uncommitted changes.".into(),
+            "Main repo has uncommitted changes. Commit or stash before merging.".into(),
         ));
     }
     if git::is_merge_in_progress() {
-        return Err(Error::Other(
-            "Main repo has a merge in progress.".into(),
-        ));
+        return Err(Error::Other("Main repo has a merge in progress.".into()));
     }
     if git::is_rebase_in_progress() {
-        return Err(Error::Other(
-            "Main repo has a rebase in progress.".into(),
-        ));
+        return Err(Error::Other("Main repo has a rebase in progress.".into()));
     }
+
+    // Capture main repo's current branch *before* we move HEAD, so we can
+    // restore it if any subsequent step fails.
+    let original_main_branch = git::current_branch().ok();
 
     git::checkout(&target)?;
 
-    if !git::dry_run_merge(&current)? {
-        git::checkout(&target).ok();
+    if !git::dry_run_merge(&current, strategy.is_squash())? {
+        if let Some(orig) = &original_main_branch {
+            let _ = git::checkout(orig);
+        }
         print_conflict_hint();
         return Err(Error::Other("Merge aborted due to conflicts".into()));
     }
 
     match execute_merge(&current, &target, strategy) {
         Ok(false) => {
-            eprintln!(
-                "Nothing to merge: {current} is already up to date with {target}"
-            );
+            eprintln!("Nothing to merge: {current} is already up to date with {target}");
+            // Restore main repo to its prior branch — moving HEAD is a side
+            // effect of the dry-run + checkout sequence; the user didn't
+            // ask for it.
+            if let Some(orig) = &original_main_branch {
+                let _ = git::checkout(orig);
+            }
             return Ok(());
         }
         Err(e) => {
+            // Roll back any squash staging, then return HEAD to where it was.
+            let _ = git::reset_merge();
+            if let Some(orig) = &original_main_branch {
+                let _ = git::checkout(orig);
+            }
             return Err(e);
         }
         Ok(true) => {}
@@ -129,7 +157,9 @@ fn run_merge(
 
     if !config.hooks.post_merge.is_empty() {
         eprintln!("Running post-merge hooks...");
-        process::run_hooks(&config.hooks.post_merge, main_repo)
+        // Match pre_merge: CWD = worktree (still on disk, since cleanup
+        // happens after this block).
+        process::run_hooks(&config.hooks.post_merge, &wt_path)
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
@@ -196,6 +226,15 @@ pub fn execute_merge(branch: &str, trunk: &str, strategy: MergeStrategy) -> Resu
             }
         }
         MergeStrategy::Merge => {
+            // Detect "already up to date" before invoking git: when there
+            // are no commits ahead, `git merge --no-ff` succeeds silently
+            // without producing a merge commit. Returning Ok(true) in that
+            // case would print "Merge complete" and (with -d) cleanup a
+            // worktree even though nothing happened — caller relies on the
+            // bool to know whether to proceed.
+            if git::commit_count(trunk, branch)? == 0 {
+                return Ok(false);
+            }
             git::merge(branch, false, true, Some(&msg))?;
             Ok(true)
         }

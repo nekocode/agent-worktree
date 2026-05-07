@@ -56,7 +56,15 @@ pub fn parse_snap_merge_choice(input: &str) -> Option<SnapMergeChoice> {
     }
 }
 
-/// 通用选择提示：显示选项，读取用户输入，解析结果
+/// Bound on retries. Prevents infinite loops when stdin is
+/// non-interactive and `read_line` returns 0 bytes (EOF) repeatedly.
+const MAX_PROMPT_ATTEMPTS: usize = 5;
+
+/// Show options, read user input, parse to a typed choice.
+///
+/// Re-prompts on unrecognized input rather than treating a stray Enter or
+/// typo as cancellation — silent default-to-Exit during a snap loop is too
+/// destructive to be the failure mode for a wrong keystroke.
 fn read_choice<T>(lines: &[&str], prompt_text: &str, parse: fn(&str) -> Option<T>) -> Result<T> {
     use std::io::{self, Write};
     eprintln!();
@@ -64,11 +72,21 @@ fn read_choice<T>(lines: &[&str], prompt_text: &str, parse: fn(&str) -> Option<T
         eprintln!("{line}");
     }
     eprintln!();
-    eprint!("{prompt_text}");
-    io::stderr().flush().map_err(Error::Io)?;
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).map_err(Error::Io)?;
-    parse(&input).ok_or(Error::Cancelled)
+    for _ in 0..MAX_PROMPT_ATTEMPTS {
+        eprint!("{prompt_text}");
+        io::stderr().flush().map_err(Error::Io)?;
+        let mut input = String::new();
+        let bytes = io::stdin().read_line(&mut input).map_err(Error::Io)?;
+        // EOF (Ctrl+D, closed stdin, non-interactive caller): give up.
+        if bytes == 0 {
+            return Err(Error::Cancelled);
+        }
+        if let Some(choice) = parse(&input) {
+            return Ok(choice);
+        }
+        eprintln!("Invalid input. Please choose one of the options shown.");
+    }
+    Err(Error::Cancelled)
 }
 
 pub fn snap_merge_prompt() -> Result<SnapMergeChoice> {

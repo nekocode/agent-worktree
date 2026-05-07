@@ -30,7 +30,9 @@ fn test_cd_no_args_returns_repo_root() {
 }
 
 #[test]
-fn test_cd_no_args_without_path_file() {
+fn test_cd_no_args_without_path_file_is_rejected() {
+    // `wt cd` directly (no shell wrapper) cannot change the parent shell's
+    // CWD, so the binary should refuse rather than silently no-op.
     let dir = tempdir().unwrap();
     setup_git_repo(dir.path());
 
@@ -40,7 +42,12 @@ fn test_cd_no_args_without_path_file() {
         .output()
         .expect("wt cd failed");
 
-    assert!(output.status.success());
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("setup"),
+        "stderr should mention 'wt setup': {stderr}"
+    );
 }
 
 #[test]

@@ -202,3 +202,51 @@ fn test_full_worktree_lifecycle() {
 
     let _ = output.status;
 }
+
+#[test]
+fn test_nested_snap_is_rejected() {
+    // `wt new -s` from inside an existing worktree must refuse: the parent
+    // shell's snap loop cannot survive a nested one (cwd tracking would
+    // diverge when the inner finishes).
+    use std::path::PathBuf;
+    let (dir, repo, home) = setup_worktree_test_env();
+
+    // Outer worktree
+    let path_file = create_path_file(dir.path());
+    let output = Command::new(wt_binary())
+        .args([
+            "new",
+            "outer-snap",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new outer failed");
+    assert!(output.status.success());
+    let outer_wt = PathBuf::from(read_path_file(&path_file).trim());
+
+    // Try to start snap mode from inside the outer worktree → reject
+    let inner_path_file = dir.path().join(".wt-path-inner");
+    std::fs::write(&inner_path_file, "").unwrap();
+    let output = Command::new(wt_binary())
+        .args([
+            "new",
+            "-s",
+            "true",
+            "--path-file",
+            inner_path_file.to_str().unwrap(),
+        ])
+        .current_dir(&outer_wt)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new -s failed");
+
+    assert!(!output.status.success(), "nested snap should be rejected");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("nested") || stderr.contains("worktree"),
+        "stderr should explain nested rejection: {stderr}"
+    );
+}

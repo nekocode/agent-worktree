@@ -150,3 +150,56 @@ fn test_clean_dry_run() {
         assert!(stdout.contains("clean-dry"));
     }
 }
+
+#[test]
+fn test_clean_skips_dirty_worktree() {
+    // A worktree with no committed diff but uncommitted edits is NOT eligible
+    // for clean — git would refuse non-force removal anyway, and silently
+    // discarding in-flight work would be a footgun.
+    let (_dir, repo, home) = setup_worktree_test_env();
+
+    let output = Command::new(wt_binary())
+        .args(["new", "dirty-clean"])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new failed");
+    assert!(output.status.success());
+
+    // Locate the worktree path and add an uncommitted file there
+    let ls_output = Command::new(wt_binary())
+        .args(["ls", "-l"])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt ls failed");
+    let stdout = String::from_utf8_lossy(&ls_output.stdout);
+    let wt_line = stdout
+        .lines()
+        .find(|l| l.contains("dirty-clean"))
+        .expect("worktree should appear in ls -l");
+    // ls -l output contains the path; pull whatever looks like a path token
+    let wt_path = wt_line
+        .split_whitespace()
+        .find(|tok| tok.starts_with('/'))
+        .expect("ls -l should contain absolute path");
+    std::fs::write(format!("{wt_path}/scratch.tmp"), "in-flight\n").unwrap();
+
+    // Dry-run should report the dirty skip, not "Would clean"
+    let output = Command::new(wt_binary())
+        .args(["clean", "--dry-run"])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt clean --dry-run failed");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success());
+    assert!(
+        stderr.contains("Skipping dirty-clean") || stderr.contains("uncommitted"),
+        "stderr should mention skipping dirty worktree: {stderr}"
+    );
+    assert!(
+        !stderr.contains("Would clean (no diff from main): dirty-clean"),
+        "dry-run must not promise to clean a dirty worktree: {stderr}"
+    );
+}

@@ -28,6 +28,10 @@ Update to the latest version:
 wt update
 ```
 
+> **Windows note** — `wt update` reinstalls the npm package, which fails if
+> any `wt` process is running because Windows locks the running `.exe`.
+> Close all shells running `wt` before updating.
+
 Shell integration is installed automatically. To reinstall manually:
 
 ```bash
@@ -67,9 +71,17 @@ wt new fix-bug -s codex    # Specified branch name
 wt new -s "claude --dangerously-skip-permissions"  # Command with arguments
 ```
 
+> **Argument quoting** — `-s` takes a single token. Use quotes whenever the
+> command has flags or arguments (`-s "agent --flag"`), otherwise the shell
+> hands the trailing args to `wt new` instead.
+>
+> **Nested snap is refused** — running `wt new -s` from inside an existing
+> worktree exits with an error. Run `wt cd` to return to the main repo first.
+
 Flow: Create worktree → Enter → Run agent → [Develop] → Agent exits → Check changes → Merge → Cleanup
 
-When the agent exits normally:
+After the agent exits — whether normally or with a crash / Ctrl+C — `wt`
+checks the worktree state:
 
 - **No changes**: Worktree cleaned up automatically
 - **Only commits** (nothing uncommitted):
@@ -82,6 +94,10 @@ When the agent exits normally:
   [r] Reopen agent (let agent commit)
   [q] Exit snap mode (commit manually)
   ```
+
+> **base_branch must still exist** — if the worktree's base branch was
+> deleted while the agent ran, `[m]` errors out. Use `wt merge --into <branch>`
+> to pick an explicit target instead.
 
 ## Commands
 
@@ -158,6 +174,17 @@ post_create = ["pnpm install"]
 pre_merge = ["pnpm test", "pnpm lint"]
 post_merge = []
 ```
+
+> **`copy_files` constraints** — patterns are gitignore-style and must stay
+> inside the repo: leading `/` (absolute paths) and `..` traversal are
+> rejected. Symlinks are not followed.
+>
+> **Hook trust boundary** — hooks run via `sh -c` (or `cmd /C` on Windows)
+> with no sandboxing or timeout. Treat `.agent-worktree.toml` like any
+> committed shell script: only run repos whose hooks you would `bash` directly.
+>
+> **Hook CWD** — `pre_merge` and `post_merge` always run with the worktree
+> root as the working directory. `post_create` runs in the new worktree.
 
 ### Project Config `.agent-worktree.toml`
 

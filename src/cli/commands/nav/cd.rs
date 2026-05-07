@@ -20,13 +20,19 @@ pub struct CdArgs {
 }
 
 pub fn run(args: CdArgs, config: &Config, path_file: Option<&Path>) -> Result<()> {
+    // `wt cd` only makes sense behind the shell wrapper — a child process
+    // can't change its parent shell's CWD. Without a path_file the wrapper
+    // isn't installed (or the binary was invoked directly), so refuse loudly
+    // instead of pretending to switch.
+    if path_file.is_none() {
+        return Err(Error::Other(
+            "Shell integration not installed. Run 'wt setup' first.".into(),
+        ));
+    }
+
     let Some(branch) = args.branch else {
         let repo_root = git::repo_root()?;
-        if path_file.is_some() {
-            write_path_file(path_file, &repo_root)?;
-        } else {
-            eprintln!("Returning to main repo");
-        }
+        write_path_file(path_file, &repo_root)?;
         return Ok(());
     };
 
@@ -38,11 +44,6 @@ pub fn run(args: CdArgs, config: &Config, path_file: Option<&Path>) -> Result<()
         return Err(Error::Git(git::Error::WorktreeNotFound(branch)));
     }
 
-    if path_file.is_some() {
-        write_path_file(path_file, &wt_path)?;
-    } else {
-        eprintln!("Switching to: {}", branch);
-    }
-
+    write_path_file(path_file, &wt_path)?;
     Ok(())
 }

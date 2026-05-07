@@ -109,7 +109,14 @@ wt init [options]            # 在当前项目初始化配置
 - fish: `~/.config/fish/config.fish`
 - powershell: `~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1`
 
-Wrapper 会检查 `wt` 命令是否存在，不存在时给出安装提示。
+### 集成约束
+
+- **Wrapper 必装才能 cd**：`wt cd` 检测无 `--path-file` 直接报错，提示 `wt setup`——不再静默 noop
+- **`wt rm .` 防误操**：cwd 在被删 worktree 内且无 wrapper → 拒绝（避免 dangling cwd）
+- **rc 文件 marker 严格配对**：`wt setup` 找到孤立 BEGIN/END 直接报错，不动 rc，避免截断
+- **path_file 唯一**：bash/zsh wrapper 用 `mktemp` 而非 `$$`（subshell 中 `$$` 是父 PID，并发会撞）
+- **agent 退出统一**：crash/SIGINT/非零状态都进 snap-continue
+- **Windows update**：`wt update` 调用 npm，运行中的 `wt.exe` 被 OS 锁定 → 先关闭所有 wt 进程
 
 ---
 
@@ -174,15 +181,18 @@ wt merge          # merge 并清理
 
 ### 原子 merge（预检测模式）
 
-merge 为原子操作——要么成功，要么什么都不做。不存在中间状态。
+merge 为原子操作——要么成功，要么 HEAD 回到原分支。不残留中间状态。
 
 ```
 wt merge
+  → 记录主 repo 当前分支为 original
   → checkout target（main repo）
-  → dry-run: git merge --no-commit --no-ff <branch>
+  → dry-run（按真实策略：squash 用 --squash --no-commit，否则 --no-ff）
   → 有冲突？
-      YES → git merge --abort → 报错 "先 wt sync 解决冲突"
-      NO  → git merge --abort → 真正执行 merge（squash/merge 策略）
+      YES → 清理 + checkout original → 报错 "先 wt sync 解决冲突"
+      NO  → 清理 + 执行真实 merge
+              失败 → reset_merge + checkout original → 抛错
+              成功 → 跑 post_merge hook → 可选删 worktree
 ```
 
 ### 冲突处理流程
@@ -194,14 +204,19 @@ wt sync          # 在 worktree 中解决冲突
 wt merge         # 无冲突，原子完成
 ```
 
-### 安全检查
+### 安全检查与约束
 
-执行 merge 前检查 main repo 是否有未完成的 merge/rebase/uncommitted changes，防止并发 merge 冲突。
+- 主 repo 的未完成 merge / rebase / uncommitted changes → 拒绝
+- worktree dirty → 拒绝（消息明示是 worktree 端脏）
+- 主 repo dirty → 拒绝（消息明示是 main repo 端脏）
+- `--into <branch>` 已被另一 worktree checkout → 拒绝（避免 git 报底层错）
+- `MergeStrategy::Merge` already-up-to-date → 返回 "Nothing to merge" 不删 worktree
+- 失败一律 rollback HEAD 到原分支 + reset_merge 清 squash 半成品
 
 ### merge 入口
 
 - `merge::execute_merge()` 处理 squash/merge 策略，`snap_continue` 和 `wt merge` 共用
-- `git::dry_run_merge()` 用于预检测冲突
+- `git::dry_run_merge(branch, squash)` 用于预检测冲突，按策略走 `--squash --no-commit` 或 `--no-ff --no-commit`
 
 ---
 
@@ -252,6 +267,14 @@ copy_files = [".env", ".env.*"]
 post_create = ["pnpm install"]
 pre_merge = ["pnpm test", "pnpm lint"]
 ```
+
+### 配置约束与信任边界
+
+- **路径解析**：项目配置从 `git rev-parse --git-common-dir` 上溯到主 repo 根读取——worktree/子目录任意位置行为一致
+- **`copy_files` 路径沙箱**：拒绝 `/` 开头（绝对路径）和 `..` 段；不跟随符号链接
+- **hooks 安全**：hooks 通过 `sh -c`（Windows `cmd /C`）执行，无沙箱无超时——按"committed shell script"信任处理，禁运行不信任 repo
+- **hook CWD**：`pre_merge`/`post_merge` 一律 worktree 根；`post_create` 在新 worktree 内
+- **trunk 检测**：`origin/HEAD` > `main` > `master` > 默认 `"main"`
 
 ---
 

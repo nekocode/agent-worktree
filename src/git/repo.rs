@@ -93,15 +93,14 @@ pub fn current_branch() -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-/// Detect the trunk branch (main > master > default)
+/// Detect the trunk branch.
+///
+/// Priority: origin/HEAD (remote-authoritative) > main > master > "main"
+///
+/// origin/HEAD wins because it reflects the upstream's actual default branch,
+/// avoiding silently picking `main` when the real trunk is `master` (or vice
+/// versa) just because both happen to exist locally.
 pub fn detect_trunk() -> Result<String> {
-    for branch in ["main", "master"] {
-        if branch_exists(branch)? {
-            return Ok(branch.to_string());
-        }
-    }
-
-    // Fall back to default branch from remote
     let output = Command::new("git")
         .args(["symbolic-ref", "refs/remotes/origin/HEAD"])
         .output()?;
@@ -109,6 +108,12 @@ pub fn detect_trunk() -> Result<String> {
     if output.status.success() {
         let full = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if let Some(branch) = full.strip_prefix("refs/remotes/origin/") {
+            return Ok(branch.to_string());
+        }
+    }
+
+    for branch in ["main", "master"] {
+        if branch_exists(branch)? {
             return Ok(branch.to_string());
         }
     }

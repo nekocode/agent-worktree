@@ -33,6 +33,17 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     // Ensure we're in a git repo
     let repo_root = git::repo_root()?;
     let workspace_id = git::workspace_id()?;
+    let workspace_dir = config.workspaces_dir.join(&workspace_id);
+
+    // Nested snap stacks two loops in the parent shell and breaks cwd tracking
+    // when the inner one finishes.
+    if args.snap.is_some() && git::is_cwd_inside(&workspace_dir) {
+        return Err(Error::Other(
+            "Refusing to start snap mode inside an existing worktree.\n\
+             Run 'wt cd' to return to the main repo, then retry."
+                .into(),
+        ));
+    }
 
     // Determine trunk branch
     let trunk = config.resolve_trunk();
@@ -58,27 +69,34 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     });
 
     // Worktree path
-    let wt_dir = config.workspaces_dir.join(&workspace_id);
+    let wt_dir = &workspace_dir;
     let wt_path = wt_dir.join(&branch);
 
     // Create workspace directory if needed
-    std::fs::create_dir_all(&wt_dir).map_err(|e| Error::Other(e.to_string()))?;
+    std::fs::create_dir_all(wt_dir).map_err(|e| Error::Other(e.to_string()))?;
 
     git::create_worktree(&wt_path, &branch, &base_branch)?;
 
     let meta = WorktreeMeta::new(base_branch);
-    let meta_path = meta::meta_path(&wt_dir, &branch);
+    let meta_path = meta::meta_path(wt_dir, &branch);
     meta.save(&meta_path)
         .map_err(|e| Error::Other(e.to_string()))?;
 
     // Copy files from main repo
     copy_files(&repo_root, &wt_path, config)?;
 
-    // Run post_create hooks
+    // Run post_create hooks. On failure, leave the worktree in place — the
+    // user usually wants to fix the hook (e.g. install missing tool) and
+    // resume manually rather than have us silently rm a half-created tree.
     if !config.hooks.post_create.is_empty() {
         eprintln!("Running post-create hooks...");
-        process::run_hooks(&config.hooks.post_create, &wt_path)
-            .map_err(|e| Error::Other(e.to_string()))?;
+        if let Err(e) = process::run_hooks(&config.hooks.post_create, &wt_path) {
+            eprintln!();
+            eprintln!("post_create hook failed: {e}");
+            eprintln!("Worktree '{branch}' was created at: {}", wt_path.display());
+            eprintln!("Fix the hook and `cd` in manually, or run 'wt rm {branch}' to discard.");
+            return Err(Error::Other(format!("post_create hook failed: {e}")));
+        }
     }
 
     // Handle snap mode - write path + command for shell wrapper to execute
@@ -104,12 +122,35 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     Ok(())
 }
 
+/// Reject patterns that could escape the repo root.
+///
+/// Without this guard, a malicious `.agent-worktree.toml` could exfiltrate
+/// host files into the worktree via `/abs/path` or `..` traversal — the
+/// downstream `strip_prefix` would silently skip mismatches.
+fn validate_copy_pattern(pattern: &str) -> Result<()> {
+    if pattern.starts_with('/') {
+        return Err(Error::Other(format!(
+            "copy_files pattern '{pattern}' cannot start with '/' (absolute path)"
+        )));
+    }
+    if pattern.split(['/', '\\']).any(|seg| seg == "..") {
+        return Err(Error::Other(format!(
+            "copy_files pattern '{pattern}' cannot contain '..'"
+        )));
+    }
+    Ok(())
+}
+
 fn copy_files(from: &Path, to: &Path, config: &Config) -> Result<()> {
     use ignore::overrides::OverrideBuilder;
     use ignore::WalkBuilder;
 
     if config.copy_files.is_empty() {
         return Ok(());
+    }
+
+    for pattern in &config.copy_files {
+        validate_copy_pattern(pattern)?;
     }
 
     // Build gitignore-style matcher
@@ -122,10 +163,12 @@ fn copy_files(from: &Path, to: &Path, config: &Config) -> Result<()> {
     }
     let overrides = builder.build().map_err(|e| Error::Other(e.to_string()))?;
 
-    // Walk directory with overrides (only matching files)
+    // follow_links=false: a symlink in the repo could otherwise pull files
+    // from outside the repo into the worktree.
     let walker = WalkBuilder::new(from)
         .overrides(overrides)
-        .standard_filters(false) // Don't apply .gitignore
+        .standard_filters(false)
+        .follow_links(false)
         .build();
 
     for entry in walker.flatten() {
@@ -160,4 +203,39 @@ fn copy_files(from: &Path, to: &Path, config: &Config) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_copy_pattern_accepts_relative_glob() {
+        assert!(validate_copy_pattern(".env").is_ok());
+        assert!(validate_copy_pattern(".env.*").is_ok());
+        assert!(validate_copy_pattern("config/*.toml").is_ok());
+        assert!(validate_copy_pattern("**/.secret").is_ok());
+    }
+
+    #[test]
+    fn validate_copy_pattern_rejects_absolute_path() {
+        let err = validate_copy_pattern("/etc/passwd").unwrap_err();
+        assert!(err.to_string().contains("absolute"));
+    }
+
+    #[test]
+    fn validate_copy_pattern_rejects_parent_traversal() {
+        let err = validate_copy_pattern("../secrets").unwrap_err();
+        assert!(err.to_string().contains(".."));
+
+        let err = validate_copy_pattern("config/../../etc/passwd").unwrap_err();
+        assert!(err.to_string().contains(".."));
+    }
+
+    #[test]
+    fn validate_copy_pattern_rejects_backslash_traversal() {
+        // Windows-style path separator should still be rejected.
+        let err = validate_copy_pattern("..\\secrets").unwrap_err();
+        assert!(err.to_string().contains(".."));
+    }
 }

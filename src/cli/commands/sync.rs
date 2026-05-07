@@ -63,11 +63,14 @@ pub fn run(args: SyncArgs, config: &Config) -> Result<()> {
 
     let current = git::current_branch()?;
 
-    // --from 指定的分支必须存在
     if let Some(ref branch) = args.from {
         if !git::branch_exists(branch)? {
             return Err(Error::Other(format!("Branch '{branch}' does not exist")));
         }
+        eprintln!(
+            "Note: --from '{branch}' applies to this sync only. \
+             The worktree's base branch is unchanged."
+        );
     }
 
     let target = {

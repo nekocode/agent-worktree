@@ -95,10 +95,18 @@ fn run_merge(
 
     let strategy = args.strategy.unwrap_or(config.merge_strategy);
 
+    // Shared across pre_merge/post_merge: same worktree, branch, and target.
+    let hook_env = process::HookEnv {
+        main_repo,
+        worktree: &wt_path,
+        branch: &current,
+        base_branch: &target,
+    };
+
     if !args.skip_hooks && !config.hooks.pre_merge.is_empty() {
         eprintln!("Running pre-merge hooks...");
         // CWD = worktree so pre_merge and post_merge see the same context.
-        process::run_hooks(&config.hooks.pre_merge, &wt_path)
+        process::run_hooks(&config.hooks.pre_merge, &wt_path, &hook_env)
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 
@@ -159,7 +167,7 @@ fn run_merge(
         eprintln!("Running post-merge hooks...");
         // Match pre_merge: CWD = worktree (still on disk, since cleanup
         // happens after this block).
-        process::run_hooks(&config.hooks.post_merge, &wt_path)
+        process::run_hooks(&config.hooks.post_merge, &wt_path, &hook_env)
             .map_err(|e| Error::Other(e.to_string()))?;
     }
 

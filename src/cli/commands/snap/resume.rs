@@ -190,10 +190,18 @@ fn execute_action(
             std::process::exit(EXIT_DONE);
         }
         SnapAction::MergeAndCleanup => {
+            // Shared across pre_merge/post_merge: same worktree, branch, target.
+            let hook_env = process::HookEnv {
+                main_repo: &ctx.repo_root,
+                worktree: &ctx.cwd,
+                branch: &ctx.branch,
+                base_branch: &ctx.merge_target,
+            };
+
             // Run pre-merge hooks
             if !config.hooks.pre_merge.is_empty() {
                 eprintln!("Running pre-merge hooks...");
-                process::run_hooks(&config.hooks.pre_merge, &ctx.cwd)
+                process::run_hooks(&config.hooks.pre_merge, &ctx.cwd, &hook_env)
                     .map_err(|e| Error::Other(e.to_string()))?;
             }
 
@@ -235,7 +243,7 @@ fn execute_action(
             // Match pre_merge CWD so hooks see the same context across phases.
             if !config.hooks.post_merge.is_empty() {
                 eprintln!("Running post-merge hooks...");
-                process::run_hooks(&config.hooks.post_merge, &ctx.cwd)
+                process::run_hooks(&config.hooks.post_merge, &ctx.cwd, &hook_env)
                     .map_err(|e| Error::Other(e.to_string()))?;
             }
 

@@ -180,6 +180,23 @@ post_merge = []
 >
 > **Hook CWD** — `pre_merge` 与 `post_merge` 一律 worktree 根；
 > `post_create` 在新 worktree 内。
+>
+> **Hook 环境变量** — 每个 hook 都注入以下变量，脚本可引用路径而不硬编码：
+>
+> | 变量 | 值 |
+> | --- | --- |
+> | `WT_MAIN_REPO` | 主仓库根 |
+> | `WT_WORKTREE` | 新 worktree 绝对路径 |
+> | `WT_BRANCH` | worktree 分支名 |
+> | `WT_BASE_BRANCH` | base 分支（`new` 为创建来源，`merge` 为合并目标） |
+>
+> 据此，`post_create` 可软链替代 `copy_files`——只共享、不复制依赖等重目录：
+>
+> ```toml
+> [hooks]
+> # 软链替代复制：零磁盘占用，零复制耗时。
+> post_create = ['ln -s "$WT_MAIN_REPO/node_modules" node_modules']
+> ```
 
 ### 项目配置 `.agent-worktree.toml`
 

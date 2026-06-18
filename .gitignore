@@ -1,4 +1,5 @@
 /target
+.DS_Store
 *.local.md
 task_plan.md
 findings.md

@@ -185,6 +185,25 @@ post_merge = []
 >
 > **Hook CWD** — `pre_merge` and `post_merge` always run with the worktree
 > root as the working directory. `post_create` runs in the new worktree.
+>
+> **Hook environment** — every hook receives these variables, so scripts can
+> reference paths without hardcoding them:
+>
+> | Variable | Value |
+> | --- | --- |
+> | `WT_MAIN_REPO` | Main repository root |
+> | `WT_WORKTREE` | New worktree's absolute path |
+> | `WT_BRANCH` | Worktree's branch name |
+> | `WT_BASE_BRANCH` | Base branch (creation source for `new`, merge target for `merge`) |
+>
+> This makes `post_create` a cheaper alternative to `copy_files` when you only
+> want to share — not duplicate — heavy directories like dependencies:
+>
+> ```toml
+> [hooks]
+> # Symlink instead of copying: no disk cost, no copy time.
+> post_create = ['ln -s "$WT_MAIN_REPO/node_modules" node_modules']
+> ```
 
 ### Project Config `.agent-worktree.toml`
 

@@ -90,7 +90,13 @@ pub fn run(args: NewArgs, config: &Config, path_file: Option<&Path>) -> Result<(
     // resume manually rather than have us silently rm a half-created tree.
     if !config.hooks.post_create.is_empty() {
         eprintln!("Running post-create hooks...");
-        if let Err(e) = process::run_hooks(&config.hooks.post_create, &wt_path) {
+        let env = process::HookEnv {
+            main_repo: &repo_root,
+            worktree: &wt_path,
+            branch: &branch,
+            base_branch: &meta.base_branch,
+        };
+        if let Err(e) = process::run_hooks(&config.hooks.post_create, &wt_path, &env) {
             eprintln!();
             eprintln!("post_create hook failed: {e}");
             eprintln!("Worktree '{branch}' was created at: {}", wt_path.display());

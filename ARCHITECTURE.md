@@ -312,6 +312,7 @@ pre_merge = ["pnpm test", "pnpm lint"]
 - **`copy_files` 路径沙箱**：拒绝 `/` 开头（绝对路径）和 `..` 段；不跟随符号链接
 - **hooks 安全**：hooks 通过 `sh -c`（Windows `cmd /C`）执行，无沙箱无超时——按"committed shell script"信任处理，禁运行不信任 repo
 - **hook CWD**：`pre_merge`/`post_merge` 一律 worktree 根；`post_create` 在新 worktree 内
+- **hook 环境变量**：所有 hook 注入 `WT_MAIN_REPO`（主仓库根）/`WT_WORKTREE`（worktree 路径）/`WT_BRANCH`（分支名）/`WT_BASE_BRANCH`（base 分支：new=创建来源，merge=合并目标）；叠加于继承环境。让 hook 可移植引用路径，如 `post_create = ['ln -s "$WT_MAIN_REPO/node_modules" node_modules']` 软链替代 `copy_files` 复制
 - **trunk 检测**：`origin/HEAD` > `main` > `master` > 默认 `"main"`
 
 ---

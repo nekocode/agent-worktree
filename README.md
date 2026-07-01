@@ -177,7 +177,9 @@ post_merge = []
 
 > **`copy_files` constraints** — patterns are gitignore-style and must stay
 > inside the repo: leading `/` (absolute paths) and `..` traversal are
-> rejected. Symlinks are not followed.
+> rejected. Symlinks are not followed. Files are copied using Reflink 
+> where the filesystem supports it (e.g., BTRFS, ZFS, XFS, APFS, ReFS, etc.),
+> falling back to a plain copy otherwise.
 >
 > **Hook trust boundary** — hooks run via `sh -c` (or `cmd /C` on Windows)
 > with no sandboxing or timeout. Treat `.agent-worktree.toml` like any
@@ -197,7 +199,11 @@ post_merge = []
 > | `WT_BASE_BRANCH` | Base branch (creation source for `new`, merge target for `merge`) |
 >
 > This makes `post_create` a cheaper alternative to `copy_files` when you only
-> want to share — not duplicate — heavy directories like dependencies:
+> want to share — not duplicate — heavy directories like dependencies.
+> `copy_files` already uses copy-on-write where the filesystem supports it
+> (btrfs/XFS reflink, APFS clonefile, ReFS block cloning), so a plain
+> `copy_files = ["node_modules"]` is near-free on those filesystems; the
+> symlink trick is mainly useful on filesystems without CoW:
 >
 > ```toml
 > [hooks]

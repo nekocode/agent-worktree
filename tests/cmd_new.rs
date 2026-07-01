@@ -250,3 +250,54 @@ fn test_nested_snap_is_rejected() {
         "stderr should explain nested rejection: {stderr}"
     );
 }
+
+#[test]
+fn test_new_copies_files_matching_copy_files_pattern() {
+    let (dir, repo, home) = setup_worktree_test_env();
+
+    std::fs::write(repo.join(".env"), "SECRET=test\n").unwrap();
+
+    std::fs::write(
+        repo.join(".agent-worktree.toml"),
+        r#"
+[general]
+copy_files = [".env"]
+"#,
+    )
+    .unwrap();
+
+    let path_file = create_path_file(dir.path());
+    let output = Command::new(wt_binary())
+        .args([
+            "new",
+            "copy-files-test",
+            "--path-file",
+            path_file.to_str().unwrap(),
+        ])
+        .current_dir(&repo)
+        .env("HOME", &home)
+        .output()
+        .expect("wt new failed");
+
+    assert!(
+        output.status.success(),
+        "wt new failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let wt_path = read_path_file(&path_file);
+    let wt_root = std::path::Path::new(wt_path.trim());
+    let copied_env = wt_root.join(".env");
+    assert!(
+        copied_env.exists(),
+        ".env was not copied into the worktree at {}",
+        copied_env.display()
+    );
+    let contents = std::fs::read_to_string(&copied_env).unwrap();
+    assert_eq!(contents, "SECRET=test\n");
+    assert_eq!(
+        std::fs::read_to_string(repo.join(".env")).unwrap(),
+        contents,
+        "source and copy should match"
+    );
+}

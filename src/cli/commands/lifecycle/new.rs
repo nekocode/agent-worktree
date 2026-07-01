@@ -202,13 +202,23 @@ fn copy_files(from: &Path, to: &Path, config: &Config) -> Result<()> {
                 }
             }
 
-            if let Err(e) = std::fs::copy(path, &dest) {
+            if let Err(e) = copy_file_reflink(path, &dest) {
                 eprintln!("Warning: failed to copy {}: {e}", rel.display());
             }
         }
     }
 
     Ok(())
+}
+
+/// Copy `from` to `to` using copy-on-write (reflink/clonefile/DUPLICATE_EXTENTS)
+/// where the filesystem supports it, falling back to a plain content copy
+/// otherwise.
+fn copy_file_reflink(from: &Path, to: &Path) -> std::io::Result<()> {
+    if to.exists() {
+        std::fs::remove_file(to)?;
+    }
+    reflink_copy::reflink_or_copy(from, to).map(|_| ())
 }
 
 #[cfg(test)]

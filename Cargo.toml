@@ -27,6 +27,7 @@ rand = "0.10"
 ignore = "0.4"
 dirs = "6.0.0"
 ureq = "3"
+reflink-copy = "0.1"
 
 [dev-dependencies]
 tempfile = "3"

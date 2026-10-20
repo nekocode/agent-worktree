@@ -208,6 +208,15 @@ fn test_new_copies_files_matching_copy_files_pattern() {
     let (dir, repo, home) = setup_worktree_test_env();
 
     std::fs::write(repo.join(".env"), "SECRET=test\n").unwrap();
+    filetime::set_file_mtime(
+        repo.join(".env"),
+        filetime::FileTime::from_unix_time(1_600_000_000, 123_456_700),
+    )
+    .unwrap();
+    let modified = std::fs::metadata(repo.join(".env"))
+        .unwrap()
+        .modified()
+        .unwrap();
 
     std::fs::write(
         repo.join(".agent-worktree.toml"),
@@ -247,6 +256,10 @@ copy_files = [".env"]
     );
     let contents = std::fs::read_to_string(&copied_env).unwrap();
     assert_eq!(contents, "SECRET=test\n");
+    assert_eq!(
+        std::fs::metadata(&copied_env).unwrap().modified().unwrap(),
+        modified
+    );
     assert_eq!(
         std::fs::read_to_string(repo.join(".env")).unwrap(),
         contents,
